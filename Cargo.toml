@@ -1,0 +1,7 @@
+[package]
+name = "RPS"
+version = "0.1.0"
+edition = "2024"
+description = "RPS | Rust Paste Server | Pastebin / Hastebin Server | Lightweight & Ultra Fast"
+
+[dependencies]
