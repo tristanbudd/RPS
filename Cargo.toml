@@ -3,5 +3,12 @@ name = "RPS"
 version = "0.1.0"
 edition = "2024"
 description = "RPS | Rust Paste Server | Pastebin / Hastebin Server | Lightweight & Ultra Fast"
+authors = ["Tristan Budd <contact@tristanbudd.com>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/tristanbudd/RPS"
+homepage = "https://github.com/tristanbudd/RPS"
+keywords = ["pastebin", "hastebin", "server", "paste", "lightweight"]
+categories = ["web-programming::http-server", "network-programming"]
 
 [dependencies]
