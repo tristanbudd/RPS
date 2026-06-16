@@ -1,0 +1,46 @@
+name: "Bug report"
+description: "Report a bug in the RPS project."
+title: "Bug: [Short Description]"
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: "Description"
+      description: "Please describe the bug and the steps to reproduce it."
+    validations:
+      required: true
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: "Steps to Reproduce"
+      description: "Steps to reproduce the bug."
+    validations:
+      required: true
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: "Expected Behavior"
+      description: "What you expected to happen."
+    validations:
+      required: true
+  - type: textarea
+    id: actual_behavior
+    attributes:
+      label: "Actual Behavior"
+      description: "What actually happened."
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: "Environment"
+      description: "Information about your environment."
+    validations:
+      required: true
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: "Additional Context"
+      description: "Any other information that may be helpful."
+    validations:
+      required: false

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "Personal Website"
+    url: "https://tristanbudd.com"
+    about: "Contact me at my personal website."
+  - name: "Open Pull Requests"
+    url: "https://github.com/tristanbudd/RPS/pulls"
+    about: "View open pull requests."
+  - name: "Security"
+    url: "https://github.com/tristanbudd/RPS/security"
+    about: "Report a security vulnerability."

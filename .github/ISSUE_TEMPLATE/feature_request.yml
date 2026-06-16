@@ -1,0 +1,25 @@
+name: "Feature request"
+description: "Request a feature for the RPS project."
+title: "Feature: [Short Description]"
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: "Description"
+      description: "Please describe the feature you would like to see."
+    validations:
+      required: true
+  - type: textarea
+    id: use_case
+    attributes:
+      label: "Use Case"
+      description: "How would you use this feature?"
+    validations:
+      required: true
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: "Additional Context"
+      description: "Any other information that may be helpful."
+    validations:
+      required: false
