@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="RPS - Rust Paste Server. Lightning-fast self-hosted pastebin.">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#ffffff">
+  <title>RPS - New Paste</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a href="#content" class="skip-link">Skip to content</a>
+  <header id="toolbar">
+    <a href="/" id="logo" aria-label="RPS home">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect x="2" y="2" width="7" height="7" rx="1.5" fill="currentColor"/>
+        <rect x="11" y="2" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.55"/>
+        <rect x="2" y="11" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.55"/>
+        <rect x="11" y="11" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.25"/>
+      </svg>
+      <span>RPS</span>
+    </a>
+
+    <div id="actions" role="toolbar" aria-label="Paste actions">
+      <button id="btn-save" class="act" title="Save  Ctrl+S" aria-label="Save paste">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M2 2.5A.5.5 0 0 1 2.5 2h8.879a.5.5 0 0 1 .353.146l2.122 2.122A.5.5 0 0 1 14 4.62V13.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+          <rect x="5" y="9" width="6" height="5" rx="0.5" stroke="currentColor" stroke-width="1.2"/>
+          <rect x="5" y="2" width="4.5" height="3" rx="0.5" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+      </button>
+
+      <button id="btn-new" class="act" title="New  Ctrl+N" aria-label="New paste">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M9 2H3.5A1.5 1.5 0 0 0 2 3.5v9A1.5 1.5 0 0 0 3.5 14h9A1.5 1.5 0 0 0 14 12.5V7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <path d="M11 2v4M9 4h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <button id="btn-duplicate" class="act hidden" title="Duplicate &amp; Edit  Ctrl+D" aria-label="Duplicate and edit paste">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <rect x="5" y="5" width="8" height="9" rx="1.25" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M3 11V3.5A1.5 1.5 0 0 1 4.5 2H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <path d="M9 8.5h2M10 7.5v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <a id="btn-raw" class="act hidden" title="Raw" aria-label="View raw paste">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M5 4L2 8l3 4M11 4l3 4-3 4M8 3l-1.5 10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <main id="content">
+    <div id="gutter" aria-hidden="true"><span>1</span></div>
+    <label for="editor" class="sr-only">Paste editor</label>
+    <textarea
+      id="editor"
+      spellcheck="false"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      placeholder="Start typing or paste..."
+    ></textarea>
+    <pre id="viewer" class="hidden" tabindex="0" aria-label="Highlighted paste content"><code id="viewer-code"></code></pre>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>
