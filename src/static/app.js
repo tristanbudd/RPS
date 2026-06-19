@@ -268,6 +268,8 @@ async function setViewMode(content, lang, justSaved = false) {
         }
       }, 2000);
     }
+  } else if (lang === 'unrecognized') {
+    showToast('Language not recognised. Displaying as plaintext.', 4000);
   } else if (lang && lang !== 'plaintext') {
     showToast('Loading syntax highlighting...', 0);
     await ensureHljs();
@@ -407,7 +409,7 @@ function parsePath(path) {
     const id = clean.slice(0, dot);
     if (!PASTE_ID_RE.test(id)) return { id: null, lang: null };
     const ext = clean.slice(dot + 1).toLowerCase();
-    return { id, lang: EXT[ext] || 'plaintext' };
+    return { id, lang: EXT[ext] || 'unrecognized' };
   }
   if (!PASTE_ID_RE.test(clean)) return { id: null, lang: null };
   return { id: clean, lang: null };
