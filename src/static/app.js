@@ -234,8 +234,9 @@ function setEditMode() {
  * Switches the application to view mode.
  * @param {string} content - The content of the paste to display.
  * @param {string} lang - The language of the paste to display.
+ * @param {boolean} [justSaved=false] - Whether the page was just saved.
  */
-async function setViewMode(content, lang) {
+async function setViewMode(content, lang, justSaved = false) {
   state.mode = 'view';
   state.content = content;
   state.lang = lang;
@@ -257,7 +258,17 @@ async function setViewMode(content, lang) {
   btnRaw.href = state.pasteId ? '/raw/' + state.pasteId : '#';
   viewer.focus();
 
-  if (lang && lang !== 'plaintext') {
+  if (justSaved) {
+    showToast('Saved...', 2000);
+    if (!window.location.pathname.includes('.')) {
+      const savedPasteId = state.pasteId;
+      setTimeout(() => {
+        if (state.mode === 'view' && state.pasteId === savedPasteId) {
+          showToast('Tip: Add a file extension to the URL (e.g. .rs) for syntax highlighting.', 6000);
+        }
+      }, 2000);
+    }
+  } else if (lang && lang !== 'plaintext') {
     showToast('Loading syntax highlighting...', 0);
     await ensureHljs();
     dismissToast();
@@ -307,6 +318,9 @@ function duplicate() {
  * Creates a new paste.
  */
 function newPaste() {
+  if (state.mode === 'edit' && editor.value.trim() && !confirm('Are you sure you want to discard your current changes and start a new paste?')) {
+    return;
+  }
   editor.value = '';
   history.pushState(null, '', '/');
   setEditMode();
@@ -335,7 +349,7 @@ async function save() {
     btnSave.removeAttribute('aria-disabled');
     history.pushState({ id }, '', '/' + id);
     state.pasteId = id;
-    setViewMode(content, null);
+    setViewMode(content, null, true);
   } catch {
     showToast('Save failed. Try again.');
     btnSave.disabled = false;
