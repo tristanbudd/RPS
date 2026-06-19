@@ -22,3 +22,4 @@ toml = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.8"
 uuid = { version = "1.8", features = ["v4", "serde"] }
+tower = { version = "0.5", features = ["limit"] }

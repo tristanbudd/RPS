@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, ConnectInfo},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -10,6 +10,7 @@ use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tower_http::services::{ServeDir, ServeFile};
+use std::sync::Arc;
 
 /// Server configurations
 #[derive(Deserialize, Clone, Debug)]
@@ -17,6 +18,7 @@ struct Config {
     server: ServerConfig,
     database: DatabaseConfig,
     paste: PasteConfig,
+    rate_limit: RateLimitConfig,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -41,11 +43,19 @@ struct PasteConfig {
     max_length: usize,
 }
 
+#[derive(Deserialize, Clone, Debug)]
+struct RateLimitConfig {
+    enabled: bool,
+    max_concurrent_requests: usize,
+    requests_per_minute: usize,
+}
+
 /// Shared application state
 #[derive(Clone)]
 struct AppState {
     pool: sqlx::PgPool,
     config: Config,
+    ip_limits: Arc<tokio::sync::Mutex<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>>,
 }
 
 /// Request body for creating a paste
@@ -92,11 +102,20 @@ fn load_config() -> Config {
             redirect_to_duplicate: true,
             max_length: 5_000_000,
         },
+        rate_limit: RateLimitConfig {
+            enabled: true,
+            max_concurrent_requests: 100,
+            requests_per_minute: 30,
+        },
     }
 }
 
 /// Starts an asynchronous background task to periodically delete expired pastes.
-fn start_cleanup_task(pool: sqlx::PgPool, interval_seconds: u64) {
+fn start_cleanup_task(
+    pool: sqlx::PgPool,
+    interval_seconds: u64,
+    ip_limits: Arc<tokio::sync::Mutex<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>>,
+) {
     tokio::spawn(async move {
         let mut interval =
             tokio::time::interval(tokio::time::Duration::from_secs(interval_seconds));
@@ -122,6 +141,15 @@ fn start_cleanup_task(pool: sqlx::PgPool, interval_seconds: u64) {
                     );
                 }
             }
+
+            // Prune expired rate limiting IPs
+            let now_instant = std::time::Instant::now();
+            let mut limits = ip_limits.lock().await;
+            limits.retain(|_, timestamps| {
+                timestamps.retain(|&t| now_instant.duration_since(t).as_secs() < 60);
+                !timestamps.is_empty()
+            });
+            println!("Success | Background worker: Pruned expired rate-limit IP records.");
         }
     });
 }
@@ -164,27 +192,37 @@ async fn main() {
     .expect("Error | Failed to create md5 content index");
     println!("Success | Database schema initialized");
 
-    // Start database cleanup scheduler
-    start_cleanup_task(pool.clone(), config.paste.cleanup_interval_seconds);
-
     // Setup sharing state
     let state = AppState {
-        pool,
+        pool: pool.clone(),
         config: config.clone(),
+        ip_limits: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
     };
+
+    // Start database cleanup scheduler
+    start_cleanup_task(
+        pool.clone(),
+        config.paste.cleanup_interval_seconds,
+        state.ip_limits.clone(),
+    );
 
     // Configure static directories and SPA index.html fallbacks
     let serve_dir =
         ServeDir::new("src/static").not_found_service(ServeFile::new("src/static/index.html"));
 
     // Build the Axum router
-    let app = Router::new()
+    let mut app = Router::new()
         .route("/api/paste", post(create_paste))
         .route("/api/paste/:id", get(get_paste))
         .route("/raw/:id", get(raw_paste))
         .fallback_service(serve_dir)
+        .layer(axum::middleware::from_fn_with_state(state.clone(), ip_rate_limit_middleware))
         .layer(axum::extract::DefaultBodyLimit::max(config.paste.max_length))
-        .with_state(state);
+        .with_state(state.clone());
+
+    if config.rate_limit.enabled {
+        app = app.layer(tower::limit::ConcurrencyLimitLayer::new(config.rate_limit.max_concurrent_requests));
+    }
 
     // Bind and start the web server
     let host = config
@@ -196,7 +234,12 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
     println!("Info | RPS - Web Server listening on: http://{}", addr);
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
 /// Generates a unique paste ID based on the format specified in configuration
@@ -417,4 +460,66 @@ async fn raw_paste(State(state): State<AppState>, Path(id): Path<String>) -> imp
             (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response()
         }
     }
+}
+
+/// Middleware to enforce per-IP rate limiting
+async fn ip_rate_limit_middleware(
+    State(state): State<AppState>,
+    request: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, StatusCode> {
+    if !state.config.rate_limit.enabled {
+        return Ok(next.run(request).await);
+    }
+
+    // 1. Get client IP
+    let ip = get_client_ip(&request);
+
+    // 2. Lock and update timestamps
+    let now = std::time::Instant::now();
+    let mut limits = state.ip_limits.lock().await;
+    let timestamps = limits.entry(ip).or_insert_with(Vec::new);
+
+    // Retain only requests within the last 60 seconds
+    timestamps.retain(|&t| now.duration_since(t).as_secs() < 60);
+
+    if timestamps.len() >= state.config.rate_limit.requests_per_minute {
+        println!("Warning | Rate limit exceeded for IP: {}", ip);
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    timestamps.push(now);
+    drop(limits);
+
+    Ok(next.run(request).await)
+}
+
+/// Helper function to retrieve client IP supporting proxy headers
+fn get_client_ip(request: &axum::http::Request<axum::body::Body>) -> std::net::IpAddr {
+    // Check X-Forwarded-For header
+    if let Some(forwarded_for) = request.headers().get("x-forwarded-for") {
+        if let Ok(forwarded_str) = forwarded_for.to_str() {
+            if let Some(first_ip_str) = forwarded_str.split(',').next() {
+                if let Ok(ip) = first_ip_str.trim().parse::<std::net::IpAddr>() {
+                    return ip;
+                }
+            }
+        }
+    }
+
+    // Check X-Real-IP header
+    if let Some(real_ip) = request.headers().get("x-real-ip") {
+        if let Ok(real_ip_str) = real_ip.to_str() {
+            if let Ok(ip) = real_ip_str.trim().parse::<std::net::IpAddr>() {
+                return ip;
+            }
+        }
+    }
+
+    // Fallback to peer address
+    request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ConnectInfo(addr)| addr.ip())
+        .unwrap_or_else(|| [127, 0, 0, 1].into())
 }

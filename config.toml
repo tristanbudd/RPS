@@ -44,3 +44,13 @@ redirect_to_duplicate = true
 # The maximum length (in characters/bytes) allowed for a single paste.
 # Pastes exceeding this limit will be rejected.
 max_length = 5000000
+
+[rate_limit]
+# Enable rate limiting to prevent abuse.
+enabled = true
+
+# The maximum number of concurrent requests the server will handle overall.
+max_concurrent_requests = 100
+
+# Per-IP rate limiting: maximum requests allowed per IP address within a 60-second window.
+requests_per_minute = 30
