@@ -319,12 +319,57 @@ body.typing #gutter {
   }
 }
 
-@media (max-width: 540px) {
+@media (max-width: 768px) {
   :root {
-    --gutter-w: 38px;
-    --toolbar-h: 40px;
+    --gutter-w: 44px;
+    --toolbar-h: 56px;
   }
 
-  #logo span { display: none; }
-  #editor, #viewer, #raw-view { padding: 12px; }
+  html {
+    font-size: 15px;
+  }
+
+  #logo span {
+    display: none;
+  }
+
+  #logo {
+    padding: 8px 6px;
+  }
+
+  #logo svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  #actions {
+    gap: 10px;
+  }
+
+  .act {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+
+  .act svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  #editor, #viewer, #raw-view {
+    font-size: 16px;
+    padding: 12px 16px;
+  }
+
+  #gutter {
+    font-size: 13px;
+    padding: 12px 8px 12px 0;
+  }
+
+  #toast {
+    font-size: 0.85rem;
+    padding: 10px 20px;
+    bottom: 24px;
+  }
 }
