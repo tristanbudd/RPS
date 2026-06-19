@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State, ConnectInfo},
+    extract::{ConnectInfo, Path, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -9,9 +9,9 @@ use chrono::{Duration, Utc};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
-use tower_http::services::{ServeDir, ServeFile};
-use tower_http::compression::CompressionLayer;
 use std::sync::Arc;
+use tower_http::compression::CompressionLayer;
+use tower_http::services::ServeDir;
 
 /// Server configurations
 #[derive(Deserialize, Clone, Debug)]
@@ -56,7 +56,9 @@ struct RateLimitConfig {
 struct AppState {
     pool: sqlx::PgPool,
     config: Config,
-    ip_limits: Arc<tokio::sync::Mutex<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>>,
+    ip_limits: Arc<
+        tokio::sync::Mutex<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>,
+    >,
 }
 
 /// Request body for creating a paste
@@ -115,7 +117,9 @@ fn load_config() -> Config {
 fn start_cleanup_task(
     pool: sqlx::PgPool,
     interval_seconds: u64,
-    ip_limits: Arc<tokio::sync::Mutex<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>>,
+    ip_limits: Arc<
+        tokio::sync::Mutex<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>,
+    >,
 ) {
     tokio::spawn(async move {
         let mut interval =
@@ -185,20 +189,16 @@ async fn main() {
     .expect("Error | Failed to initialize pastes database table");
 
     // Create an expression index on md5(content) for fast duplicate content checks
-    sqlx::query(
-        "CREATE INDEX IF NOT EXISTS pastes_content_md5_idx ON pastes (md5(content))"
-    )
-    .execute(&pool)
-    .await
-    .expect("Error | Failed to create md5 content index");
+    sqlx::query("CREATE INDEX IF NOT EXISTS pastes_content_md5_idx ON pastes (md5(content))")
+        .execute(&pool)
+        .await
+        .expect("Error | Failed to create md5 content index");
 
     // Create an index on expires_at for fast background cleanup
-    sqlx::query(
-        "CREATE INDEX IF NOT EXISTS pastes_expires_at_idx ON pastes (expires_at)"
-    )
-    .execute(&pool)
-    .await
-    .expect("Error | Failed to create expires_at index");
+    sqlx::query("CREATE INDEX IF NOT EXISTS pastes_expires_at_idx ON pastes (expires_at)")
+        .execute(&pool)
+        .await
+        .expect("Error | Failed to create expires_at index");
     println!("Success | Database schema initialized");
 
     // Setup sharing state
@@ -216,8 +216,7 @@ async fn main() {
     );
 
     // Configure static directories and SPA index.html fallbacks (with 200 OK status for SPA routes)
-    let serve_dir =
-        ServeDir::new("src/static").not_found_service(axum::routing::any(spa_fallback));
+    let serve_dir = ServeDir::new("src/static").not_found_service(axum::routing::any(spa_fallback));
 
     // Build the Axum router
     let mut app = Router::new()
@@ -227,12 +226,19 @@ async fn main() {
         .fallback_service(serve_dir)
         .layer(CompressionLayer::new())
         .layer(axum::middleware::from_fn(cache_control_middleware))
-        .layer(axum::middleware::from_fn_with_state(state.clone(), ip_rate_limit_middleware))
-        .layer(axum::extract::DefaultBodyLimit::max(config.paste.max_length))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            ip_rate_limit_middleware,
+        ))
+        .layer(axum::extract::DefaultBodyLimit::max(
+            config.paste.max_length,
+        ))
         .with_state(state.clone());
 
     if config.rate_limit.enabled {
-        app = app.layer(tower::limit::ConcurrencyLimitLayer::new(config.rate_limit.max_concurrent_requests));
+        app = app.layer(tower::limit::ConcurrencyLimitLayer::new(
+            config.rate_limit.max_concurrent_requests,
+        ));
     }
 
     // Bind and start the web server
@@ -276,16 +282,12 @@ fn generate_id(config: &PasteConfig) -> String {
                 })
                 .collect()
         }
-        "uuid" => {
-            uuid::Uuid::new_v4().to_string()
-        }
-        "alphanumeric" | _ => {
-            thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(config.id_length)
-                .map(char::from)
-                .collect()
-        }
+        "uuid" => uuid::Uuid::new_v4().to_string(),
+        _ => thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(config.id_length)
+            .map(char::from)
+            .collect(),
     }
 }
 
@@ -318,16 +320,24 @@ async fn create_paste(
         .unwrap_or(None);
 
         if let Some((existing_id,)) = existing {
-            println!("Info | Exact duplicate content found. Redirecting to existing paste '{}'.", existing_id);
+            println!(
+                "Info | Exact duplicate content found. Redirecting to existing paste '{}'.",
+                existing_id
+            );
             if state.config.paste.extend_expiry_on_read {
-                let new_expires_at = Utc::now() + Duration::days(state.config.paste.default_expiry_days);
+                let new_expires_at =
+                    Utc::now() + Duration::days(state.config.paste.default_expiry_days);
                 let _ = sqlx::query("UPDATE pastes SET expires_at = $1 WHERE id = $2")
                     .bind(new_expires_at)
                     .bind(&existing_id)
                     .execute(&state.pool)
                     .await;
             }
-            return (StatusCode::OK, Json(CreatePasteResponse { id: existing_id })).into_response();
+            return (
+                StatusCode::OK,
+                Json(CreatePasteResponse { id: existing_id }),
+            )
+                .into_response();
         }
     }
 
@@ -340,12 +350,13 @@ async fn create_paste(
     loop {
         let id = generate_id(&state.config.paste);
 
-        let result = sqlx::query("INSERT INTO pastes (id, content, expires_at) VALUES ($1, $2, $3)")
-            .bind(&id)
-            .bind(&payload.content)
-            .bind(expires_at)
-            .execute(&state.pool)
-            .await;
+        let result =
+            sqlx::query("INSERT INTO pastes (id, content, expires_at) VALUES ($1, $2, $3)")
+                .bind(&id)
+                .bind(&payload.content)
+                .bind(expires_at)
+                .execute(&state.pool)
+                .await;
 
         match result {
             Ok(_) => {
@@ -377,7 +388,8 @@ async fn create_paste(
                     }
                 }
                 eprintln!("Error | Failed to save paste to database: {:?}", e);
-                return (StatusCode::INTERNAL_SERVER_ERROR, "Database save failure").into_response();
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Database save failure")
+                    .into_response();
             }
         }
     }
