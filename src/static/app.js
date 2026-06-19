@@ -111,36 +111,16 @@ function ensureHljs() {
       const l = document.createElement('link');
       l.id = 'hljs-theme';
       l.rel = 'stylesheet';
-      l.href = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css';
+      l.href = '/vendor/github.min.css';
       document.head.appendChild(l);
     }
     const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js';
+    s.src = '/vendor/highlight.min.js';
     s.onload = resolve;
     s.onerror = resolve;
     document.head.appendChild(s);
   });
   return hljsReady;
-}
-
-/**
- * Asynchronously loads external typography (Inter and Cascadia Code fonts).
- * Designed to be called after initial load to avoid blocking render.
- */
-function loadFonts() {
-  const fonts = [
-    'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap',
-    'https://cdn.jsdelivr.net/npm/@fontsource/cascadia-code/index.min.css'
-  ];
-
-  fonts.forEach(href => {
-    if (!document.querySelector(`link[href="${href}"]`)) {
-      const l = document.createElement('link');
-      l.rel = 'stylesheet';
-      l.href = href;
-      document.head.appendChild(l);
-    }
-  });
 }
 
 /**
@@ -197,8 +177,6 @@ editor.addEventListener('input', () => {
  */
 const idleCall = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
 idleCall(() => {
-  loadFonts();
-
   let typingTimer = null;
   editor.addEventListener('input', () => {
     document.body.classList.add('typing');
