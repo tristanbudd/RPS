@@ -239,6 +239,8 @@ viewer.addEventListener('scroll', () => { gutter.scrollTop = viewer.scrollTop; }
 function setEditMode() {
   state.mode = 'edit';
   document.title = 'RPS - New Paste';
+  const metaRobots = document.querySelector('meta[name="robots"]');
+  if (metaRobots) metaRobots.setAttribute('content', 'index, follow');
   editor.classList.remove('hidden');
   viewer.classList.add('hidden');
   btnSave.classList.remove('hidden');
@@ -260,6 +262,8 @@ async function setViewMode(content, lang) {
   state.content = content;
   state.lang = lang;
   document.title = 'RPS - Viewing Paste';
+  const metaRobots = document.querySelector('meta[name="robots"]');
+  if (metaRobots) metaRobots.setAttribute('content', 'noindex, nofollow');
 
   viewerCode.textContent = content;
   viewerCode.className = '';

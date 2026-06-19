@@ -215,9 +215,9 @@ async fn main() {
         state.ip_limits.clone(),
     );
 
-    // Configure static directories and SPA index.html fallbacks
+    // Configure static directories and SPA index.html fallbacks (with 200 OK status for SPA routes)
     let serve_dir =
-        ServeDir::new("src/static").not_found_service(ServeFile::new("src/static/index.html"));
+        ServeDir::new("src/static").not_found_service(axum::routing::any(spa_fallback));
 
     // Build the Axum router
     let mut app = Router::new()
@@ -226,6 +226,7 @@ async fn main() {
         .route("/raw/:id", get(raw_paste))
         .fallback_service(serve_dir)
         .layer(CompressionLayer::new())
+        .layer(axum::middleware::from_fn(cache_control_middleware))
         .layer(axum::middleware::from_fn_with_state(state.clone(), ip_rate_limit_middleware))
         .layer(axum::extract::DefaultBodyLimit::max(config.paste.max_length))
         .with_state(state.clone());
@@ -532,4 +533,54 @@ fn get_client_ip(request: &axum::http::Request<axum::body::Body>) -> std::net::I
         .get::<ConnectInfo<SocketAddr>>()
         .map(|ConnectInfo(addr)| addr.ip())
         .unwrap_or_else(|| [127, 0, 0, 1].into())
+}
+
+/// SPA fallback handler to serve index.html with a 200 OK status
+async fn spa_fallback() -> impl IntoResponse {
+    match tokio::fs::read_to_string("src/static/index.html").await {
+        Ok(html) => (
+            StatusCode::OK,
+            [("content-type", "text/html; charset=utf-8")],
+            html,
+        )
+            .into_response(),
+        Err(e) => {
+            eprintln!("Error | Failed to read index.html: {:?}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
+        }
+    }
+}
+
+/// Middleware to add Cache-Control headers for static assets and page requests
+async fn cache_control_middleware(
+    request: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> impl IntoResponse {
+    let path = request.uri().path().to_string();
+    let mut response = next.run(request).await;
+
+    let is_static_asset = path.ends_with(".css")
+        || path.ends_with(".js")
+        || path.ends_with(".svg")
+        || path.ends_with(".png")
+        || path.ends_with(".ico")
+        || path.ends_with(".webmanifest")
+        || path.ends_with(".woff")
+        || path.ends_with(".woff2");
+
+    if is_static_asset && response.status().is_success() {
+        let headers = response.headers_mut();
+        headers.insert(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("public, max-age=31536000, immutable"),
+        );
+    } else if path == "/" || path.ends_with(".html") {
+        let headers = response.headers_mut();
+        headers.insert(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-cache, no-store, must-revalidate"),
+        );
+    }
+
+    response
 }

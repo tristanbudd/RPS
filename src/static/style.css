@@ -175,7 +175,7 @@ body {
   font-family: var(--font-mono);
   font-size: 0.78rem;
   line-height: var(--line-h);
-  color: var(--text-dim);
+  color: var(--text-muted);
   background: var(--surface);
   border-right: 1px solid var(--border-dim);
   overflow: hidden;
@@ -189,7 +189,7 @@ body {
 }
 
 #gutter span.current {
-  color: var(--text-muted);
+  color: var(--text);
 }
 
 #editor {
