@@ -1,0 +1,37 @@
+# RPS - Rust Paste Server Configuration File
+
+[server]
+# The IP address/host that the web server binds to.
+host = "0.0.0.0"
+
+# The port number on which the web server listens.
+port = 8000
+
+[database]
+# The database connection URL for PostgreSQL.
+# Format: postgres://username:password@host:port/database_name
+url = "postgres://postgres:postgres@db:5432/rps"
+
+[paste]
+# The default expiration period in days for a new paste.
+# Pastes will be automatically deleted after this many days unless read/reopened.
+default_expiry_days = 30
+
+# Whether to extend the paste's expiration date by the default_expiry_days
+# whenever the paste is fetched or read (reopened).
+extend_expiry_on_read = true
+
+# The interval in seconds at which the background cleanup task runs
+# to remove expired pastes from the database.
+cleanup_interval_seconds = 3600
+
+# The format/generator type for paste IDs.
+# Options:
+#   "alphanumeric" - Case-sensitive alphanumeric characters (e.g., "aB3dE5fG")
+#   "lowercase"    - Lowercase alphanumeric characters (e.g., "ab3de5fg")
+#   "numeric"      - Digits only (e.g., "19385029")
+#   "uuid"         - Full 36-character UUID v4 (e.g., "f81d4fae-7dec-11d0-a765-00a0c91e6bf6")
+id_type = "alphanumeric"
+
+# The length of the generated ID (only used for "alphanumeric", "lowercase", and "numeric" formats)
+id_length = 8
