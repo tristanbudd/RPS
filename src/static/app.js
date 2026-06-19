@@ -242,6 +242,8 @@ function setEditMode() {
   editor.classList.remove('hidden');
   viewer.classList.add('hidden');
   btnSave.classList.remove('hidden');
+  btnSave.disabled = false;
+  btnSave.removeAttribute('aria-disabled');
   btnDuplicate.classList.add('hidden');
   btnRaw.classList.add('hidden');
   scheduleGutterUpdate();
@@ -287,6 +289,29 @@ async function setViewMode(content, lang) {
 }
 
 /**
+ * Switches the application to loading mode to allow instant page render.
+ * @param {string} id - The ID of the paste being loaded.
+ */
+function setLoadingMode(id) {
+  state.mode = 'loading';
+  state.pasteId = id;
+  state.content = '';
+  document.title = 'RPS - Loading...';
+
+  viewerCode.textContent = 'Loading paste contents...';
+  viewerCode.className = 'loading-placeholder';
+
+  updateGutter(1, 1);
+
+  editor.classList.add('hidden');
+  viewer.classList.remove('hidden');
+  btnSave.classList.add('hidden');
+  btnDuplicate.classList.add('hidden');
+  btnRaw.classList.add('hidden');
+  viewer.focus();
+}
+
+/**
  * Duplicates the current paste and switches to edit mode.
  */
 function duplicate() {
@@ -309,10 +334,12 @@ function newPaste() {
  * Saves the current paste to the server.
  */
 async function save() {
+  if (btnSave.disabled) return;
   const content = editor.value;
   if (!content.trim()) { showToast('Nothing to save.'); return; }
   btnSave.disabled = true;
   btnSave.setAttribute('aria-disabled', 'true');
+  showToast('Saving...', 0);
   try {
     const res = await fetch('/api/paste', {
       method: 'POST',
@@ -321,6 +348,7 @@ async function save() {
     });
     if (!res.ok) throw new Error();
     const { id } = await res.json();
+    dismissToast();
     history.pushState({ id }, '', '/' + id);
     state.pasteId = id;
     setViewMode(content, null);
@@ -337,6 +365,8 @@ async function save() {
  * @param {string} lang - The language of the paste to display.
  */
 async function loadPaste(id, lang) {
+  setLoadingMode(id);
+  showToast('Loading paste...', 0);
   try {
     const res = await fetch('/api/paste/' + id);
     if (res.status === 404) {
@@ -348,6 +378,7 @@ async function loadPaste(id, lang) {
     }
     if (!res.ok) throw new Error();
     const data = await res.json();
+    dismissToast();
     state.pasteId = id;
     setViewMode(data.content, lang || data.language || null);
   } catch {
