@@ -35,3 +35,8 @@ id_type = "alphanumeric"
 
 # The length of the generated ID (only used for "alphanumeric", "lowercase", and "numeric" formats)
 id_length = 8
+
+# Whether to check if a paste with the exact same content already exists before saving.
+# If true, saves database space by redirecting users to the existing paste's URL.
+# Note: Enabling this requires a database index lookup query on every paste creation request.
+redirect_to_duplicate = true

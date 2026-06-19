@@ -37,6 +37,7 @@ struct PasteConfig {
     cleanup_interval_seconds: u64,
     id_type: String,
     id_length: usize,
+    redirect_to_duplicate: bool,
 }
 
 /// Shared application state
@@ -87,6 +88,7 @@ fn load_config() -> Config {
             cleanup_interval_seconds: 3600,
             id_type: "alphanumeric".to_string(),
             id_length: 8,
+            redirect_to_duplicate: true,
         },
     }
 }
@@ -150,6 +152,14 @@ async fn main() {
     .execute(&pool)
     .await
     .expect("Error | Failed to initialize pastes database table");
+
+    // Create an expression index on md5(content) for fast duplicate content checks
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS pastes_content_md5_idx ON pastes (md5(content))"
+    )
+    .execute(&pool)
+    .await
+    .expect("Error | Failed to create md5 content index");
     println!("Success | Database schema initialized");
 
     // Start database cleanup scheduler
@@ -229,6 +239,31 @@ async fn create_paste(
 ) -> impl IntoResponse {
     if payload.content.trim().is_empty() {
         return (StatusCode::BAD_REQUEST, "Content cannot be empty").into_response();
+    }
+
+    // Check if a paste with the exact same content already exists and is not expired (if enabled)
+    if state.config.paste.redirect_to_duplicate {
+        let existing: Option<(String,)> = sqlx::query_as(
+            "SELECT id FROM pastes WHERE md5(content) = md5($1) AND content = $1 AND expires_at > $2 LIMIT 1"
+        )
+        .bind(&payload.content)
+        .bind(Utc::now())
+        .fetch_optional(&state.pool)
+        .await
+        .unwrap_or(None);
+
+        if let Some((existing_id,)) = existing {
+            println!("Info | Exact duplicate content found. Redirecting to existing paste '{}'.", existing_id);
+            if state.config.paste.extend_expiry_on_read {
+                let new_expires_at = Utc::now() + Duration::days(state.config.paste.default_expiry_days);
+                let _ = sqlx::query("UPDATE pastes SET expires_at = $1 WHERE id = $2")
+                    .bind(new_expires_at)
+                    .bind(&existing_id)
+                    .execute(&state.pool)
+                    .await;
+            }
+            return (StatusCode::OK, Json(CreatePasteResponse { id: existing_id })).into_response();
+        }
     }
 
     // Calculate expiry based on config
