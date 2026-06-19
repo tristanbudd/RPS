@@ -40,3 +40,7 @@ id_length = 8
 # If true, saves database space by redirecting users to the existing paste's URL.
 # Note: Enabling this requires a database index lookup query on every paste creation request.
 redirect_to_duplicate = true
+
+# The maximum length (in characters/bytes) allowed for a single paste.
+# Pastes exceeding this limit will be rejected.
+max_length = 5000000

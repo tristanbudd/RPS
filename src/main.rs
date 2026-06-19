@@ -38,6 +38,7 @@ struct PasteConfig {
     id_type: String,
     id_length: usize,
     redirect_to_duplicate: bool,
+    max_length: usize,
 }
 
 /// Shared application state
@@ -89,6 +90,7 @@ fn load_config() -> Config {
             id_type: "alphanumeric".to_string(),
             id_length: 8,
             redirect_to_duplicate: true,
+            max_length: 5_000_000,
         },
     }
 }
@@ -181,6 +183,7 @@ async fn main() {
         .route("/api/paste/:id", get(get_paste))
         .route("/raw/:id", get(raw_paste))
         .fallback_service(serve_dir)
+        .layer(axum::extract::DefaultBodyLimit::max(config.paste.max_length))
         .with_state(state);
 
     // Bind and start the web server
@@ -239,6 +242,14 @@ async fn create_paste(
 ) -> impl IntoResponse {
     if payload.content.trim().is_empty() {
         return (StatusCode::BAD_REQUEST, "Content cannot be empty").into_response();
+    }
+
+    if payload.content.len() > state.config.paste.max_length {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Content exceeds the maximum configured length",
+        )
+            .into_response();
     }
 
     // Check if a paste with the exact same content already exists and is not expired (if enabled)
