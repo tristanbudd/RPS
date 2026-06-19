@@ -10,6 +10,7 @@ use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::compression::CompressionLayer;
 use std::sync::Arc;
 
 /// Server configurations
@@ -190,6 +191,14 @@ async fn main() {
     .execute(&pool)
     .await
     .expect("Error | Failed to create md5 content index");
+
+    // Create an index on expires_at for fast background cleanup
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS pastes_expires_at_idx ON pastes (expires_at)"
+    )
+    .execute(&pool)
+    .await
+    .expect("Error | Failed to create expires_at index");
     println!("Success | Database schema initialized");
 
     // Setup sharing state
@@ -216,6 +225,7 @@ async fn main() {
         .route("/api/paste/:id", get(get_paste))
         .route("/raw/:id", get(raw_paste))
         .fallback_service(serve_dir)
+        .layer(CompressionLayer::new())
         .layer(axum::middleware::from_fn_with_state(state.clone(), ip_rate_limit_middleware))
         .layer(axum::extract::DefaultBodyLimit::max(config.paste.max_length))
         .with_state(state.clone());
