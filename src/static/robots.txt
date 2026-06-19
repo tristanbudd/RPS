@@ -1,0 +1,19 @@
+# robots.txt for RPS - Rust Paste Server
+# Allows crawling the homepage but disallows raw files, API endpoints, and dynamic content.
+
+User-agent: *
+Allow: /$
+Allow: /index.html
+Allow: /style.css
+Allow: /app.js
+Allow: /favicon.svg
+Allow: /favicon.ico
+Allow: /favicon-96x96.png
+Allow: /apple-touch-icon.png
+Allow: /opengraph-image.jpg
+Allow: /site.webmanifest
+Disallow: /api/
+Disallow: /raw/
+Disallow: /*
+
+Sitemap: https://rps.tristanbudd.com/sitemap.xml
