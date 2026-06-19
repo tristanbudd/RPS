@@ -53,4 +53,4 @@ enabled = true
 max_concurrent_requests = 100
 
 # Per-IP rate limiting: maximum requests allowed per IP address within a 60-second window.
-requests_per_minute = 30
+requests_per_minute = 300

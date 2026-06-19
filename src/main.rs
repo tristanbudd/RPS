@@ -106,7 +106,7 @@ fn load_config() -> Config {
         rate_limit: RateLimitConfig {
             enabled: true,
             max_concurrent_requests: 100,
-            requests_per_minute: 30,
+            requests_per_minute: 300,
         },
     }
 }
