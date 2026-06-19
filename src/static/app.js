@@ -349,6 +349,8 @@ async function save() {
     if (!res.ok) throw new Error();
     const { id } = await res.json();
     dismissToast();
+    btnSave.disabled = false;
+    btnSave.removeAttribute('aria-disabled');
     history.pushState({ id }, '', '/' + id);
     state.pasteId = id;
     setViewMode(content, null);
