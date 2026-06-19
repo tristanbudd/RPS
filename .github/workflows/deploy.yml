@@ -1,0 +1,55 @@
+name: Build Production & Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get Version from Cargo.toml
+        id: get_version
+        run: |
+          VERSION=$(grep "^version =" Cargo.toml | head -n 1 | cut -d '"' -f 2)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Minify Assets and Push to Production Branch
+        uses: tristanbudd/minified-branch-github-action@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          target_branch: 'production'
+          hash_files: 'true'
+
+      - name: Checkout Production Branch
+        uses: actions/checkout@v4
+        with:
+          ref: 'production'
+          path: 'prod_files'
+
+      - name: Zip Production Files
+        run: |
+          cd prod_files
+          zip -r ../RPS-${{ steps.get_version.outputs.version }}.zip . -x "*.git*"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
+          files: RPS-${{ steps.get_version.outputs.version }}.zip
+          body: |
+            Automated release of RPS v${{ steps.get_version.outputs.version }} with minified production assets.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
