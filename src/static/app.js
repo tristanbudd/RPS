@@ -281,6 +281,8 @@ async function setViewMode(content, lang) {
       viewerCode.className = 'language-' + lang;
       hljs.highlightElement(viewerCode);
     }
+  } else if (state.pasteId !== 'demo' && !window.location.pathname.includes('.')) {
+    showToast('Tip: Add a file extension to the URL (e.g. .rs) for syntax highlighting.', 6000);
   }
 }
 
@@ -355,99 +357,7 @@ async function loadPaste(id, lang) {
   }
 }
 
-// START: To be removed / reworked heavily
 
-/**
- * A sample Rust code string used to test or demonstrate syntax highlighting.
- * @constant {string}
- */
-const SAMPLE = `use axum::{
-    extract::Path,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::{get, post},
-    Json, Router,
-};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use std::collections::HashMap;
-use uuid::Uuid;
-
-type Store = Arc<RwLock<HashMap<String, Paste>>>;
-
-#[derive(Clone, Serialize, Deserialize)]
-struct Paste {
-    id: String,
-    content: String,
-    language: Option<String>,
-    created_at: u64,
-}
-
-#[tokio::main]
-async fn main() {
-    let store: Store = Arc::new(RwLock::new(HashMap::new()));
-
-    let app = Router::new()
-        .route("/api/paste", post(create_paste))
-        .route("/api/paste/:id", get(get_paste))
-        .route("/raw/:id", get(raw_paste))
-        .with_state(store);
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
-        .await
-        .unwrap();
-
-    println!("RPS listening on http://0.0.0.0:3000");
-    axum::serve(listener, app).await.unwrap();
-}
-
-async fn create_paste(
-    axum::extract::State(store): axum::extract::State<Store>,
-    Json(body): Json<serde_json::Value>,
-) -> impl IntoResponse {
-    let id = Uuid::new_v4().to_string()[..8].to_string();
-    let paste = Paste {
-        id: id.clone(),
-        content: body["content"].as_str().unwrap_or("").to_string(),
-        language: body["language"].as_str().map(String::from),
-        created_at: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs(),
-    };
-    store.write().await.insert(id.clone(), paste);
-    (StatusCode::CREATED, Json(serde_json::json!({ "id": id })))
-}
-
-async fn get_paste(
-    axum::extract::State(store): axum::extract::State<Store>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
-    match store.read().await.get(&id) {
-        Some(p) => (StatusCode::OK, Json(serde_json::to_value(p).unwrap())),
-        None => (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "not found" }))),
-    }
-}
-
-async fn raw_paste(
-    axum::extract::State(store): axum::extract::State<Store>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
-    match store.read().await.get(&id) {
-        Some(p) => (StatusCode::OK, p.content.clone()),
-        None => (StatusCode::NOT_FOUND, String::from("not found")),
-    }
-}`;
-
-/**
- * Populates the viewer with the demo Rust code sample.
- * @returns {Promise<void>}
- */
-async function showDemo() {
-  state.pasteId = 'demo';
-  await setViewMode(SAMPLE, 'rust');
-}
 
 /**
  * Regular expression to validate standard URL paste IDs.
@@ -479,7 +389,6 @@ function parsePath(path) {
  * @param {string} path - The URL pathname to process.
  */
 function handlePath(path) {
-  if (new URLSearchParams(location.search).has('demo')) { showDemo(); return; }
   const { id, lang } = parsePath(path);
   if (!id) {
     setEditMode();
