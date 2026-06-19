@@ -1,6 +1,6 @@
 [package]
 name = "RPS"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 description = "RPS | Rust Paste Server | Pastebin / Hastebin Server | Lightweight & Ultra Fast"
 authors = ["Tristan Budd <contact@tristanbudd.com>"]
