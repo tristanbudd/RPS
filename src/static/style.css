@@ -400,5 +400,9 @@ body.typing #gutter {
     font-size: 0.85rem;
     padding: 10px 20px;
     bottom: 24px;
+    white-space: normal;
+    max-width: 90%;
+    width: max-content;
+    text-align: center;
   }
 }
