@@ -216,7 +216,7 @@ async fn main() {
     );
 
     // Configure static directories and SPA index.html fallbacks (with 200 OK status for SPA routes)
-    let serve_dir = ServeDir::new("src/static").not_found_service(axum::routing::any(spa_fallback));
+    let serve_dir = ServeDir::new("src/static").fallback(axum::routing::any(spa_fallback));
 
     // Build the Axum router
     let mut app = Router::new()
