@@ -165,10 +165,11 @@ async fn main() {
     let config = load_config();
 
     // Setup database connection pool
-    println!("Info | Connecting to database: {}...", config.database.url);
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| config.database.url.clone());
+    println!("Info | Connecting to database: {}...", db_url);
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(10)
-        .connect(&config.database.url)
+        .connect(&db_url)
         .await
         .expect(
             "Error | Failed to connect to database. Make sure Postgres is running and accessible.",
