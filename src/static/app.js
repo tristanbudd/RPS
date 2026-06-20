@@ -278,7 +278,7 @@ async function setViewMode(content, lang, justSaved = false) {
       viewerCode.className = 'language-' + lang;
       hljs.highlightElement(viewerCode);
     }
-  } else if (state.pasteId !== 'demo' && !window.location.pathname.includes('.')) {
+  } else if (!window.location.pathname.includes('.')) {
     showToast('Tip: Add a file extension to the URL (e.g. .rs) for syntax highlighting.', 6000);
   }
 }
