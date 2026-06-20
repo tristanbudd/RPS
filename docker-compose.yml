@@ -9,7 +9,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/rps
+      - DATABASE_URL=postgres://${DB_USERNAME:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_DATABASE:-rps}
     volumes:
       - ./config.toml:/app/config.toml
     restart: unless-stopped
@@ -17,15 +17,15 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=rps
+      - POSTGRES_USER=${DB_USERNAME:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+      - POSTGRES_DB=${DB_DATABASE:-rps}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d rps"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-rps}"]
       interval: 5s
       timeout: 5s
       retries: 5
