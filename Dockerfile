@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/
 COPY --from=builder /app/target/release/RPS /usr/local/bin/RPS
 
 COPY --from=builder /app/src/static ./src/static
+COPY config.toml ./config.toml
 
 EXPOSE 8000
 
