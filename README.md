@@ -77,23 +77,34 @@ cd RPS
 
 ### 2. Setup Configuration
 
-A default configuration is provided in `config.toml`. You can edit this file to customize the server host, port, database credentials, maximum paste length limits, and cleanup task intervals:
+1. **Environment Variables (.env)**:
+   Copy the example environment file and configure secure database credentials:
+   ```bash
+   cp .env.example .env
+   ```
+   Open the `.env` file and set a custom username (`DB_USERNAME`) and a strong, randomly generated password (`DB_PASSWORD`).
 
-```toml
-[server]
-host = "0.0.0.0"
-port = 8000
+2. **Application Configuration (`config.toml`)**:
+   A configuration file is provided in `config.toml`. You can edit it to customize settings like the server host, port, maximum paste length limits, and cleanup task intervals:
+   ```toml
+   [server]
+   host = "0.0.0.0"
+   port = 8000
 
-[database]
-url = "postgres://postgres:postgres@db:5432/rps"
+   [paste]
+   default_expiry_days = 30
+   max_length = 5000000
+   ```
 
-[paste]
-default_expiry_days = 30
-max_length = 5000000
-```
+   > [!NOTE]
+   > The server will prioritize environment variables (like `DATABASE_URL`, constructed from the `.env` file in the Docker Compose environment) over the database settings in `config.toml`.
 
-> [!NOTE]
-> The server will prioritize the `DATABASE_URL` environment variable over the setting in `config.toml` if it is present.
+3. **Database Port Security**:
+   By default, the database port `5432` is **not** exposed to the public internet or host. If you need to connect to the database from the host machine for local development or administration, you can uncomment the loopback port binding in `docker-compose.yml`:
+   ```yaml
+   ports:
+     - "127.0.0.1:5432:5432"
+   ```
 
 ### 3. Deploy using Docker Compose
 

@@ -10,6 +10,7 @@ port = 8000
 [database]
 # The database connection URL for PostgreSQL.
 # Format: postgres://username:password@host:port/database_name
+# WARNING: Do not use default credentials in production. Use environment variables (DATABASE_URL) to override this value.
 url = "postgres://postgres:postgres@db:5432/rps"
 
 [paste]
