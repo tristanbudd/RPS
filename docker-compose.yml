@@ -10,8 +10,6 @@ services:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgres://${DB_USERNAME:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_DATABASE:-rps}
-    volumes:
-      - ./config.toml:/app/config.toml
     restart: unless-stopped
 
   db:
