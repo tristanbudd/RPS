@@ -16,3 +16,9 @@ RPS provides a clean, zero-bloat editor to quickly paste text, save it, and shar
 - **Minimalist Interface**: No ads, trackers, or distraction. Just write, save, and share.
 - **Accidental Loss Prevention**: Prompts you if you try to start a new paste while having unsaved modifications.
 - **Auto-Formatting**: Supports file extension routing (like `/id.rs` or `/id.js`) to render syntax highlighting instantly.
+
+## Command Line Interface (CLI)
+
+You can save files or pipe terminal outputs directly to the paste server:
+- **Bash (Linux/macOS)**: `cat file.txt | rps` or `rps file.txt`
+- **PowerShell (Windows)**: `cat file.txt | .\rps.ps1` or `.\rps.ps1 file.txt`
