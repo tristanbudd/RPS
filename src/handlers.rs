@@ -279,8 +279,7 @@ pub async fn get_paste(
 
     // Re-extend expiration if extend_expiry_on_read is configured
     if state.config.paste.extend_expiry_on_read {
-        let new_expires_at =
-            Utc::now() + Duration::days(state.config.paste.default_expiry_days);
+        let new_expires_at = Utc::now() + Duration::days(state.config.paste.default_expiry_days);
         let _ = sqlx::query("UPDATE pastes SET expires_at = $1 WHERE id = $2")
             .bind(new_expires_at)
             .bind(&clean_id)
@@ -396,8 +395,7 @@ pub async fn raw_paste(
     };
 
     if state.config.paste.extend_expiry_on_read {
-        let new_expires_at =
-            Utc::now() + Duration::days(state.config.paste.default_expiry_days);
+        let new_expires_at = Utc::now() + Duration::days(state.config.paste.default_expiry_days);
         let _ = sqlx::query("UPDATE pastes SET expires_at = $1 WHERE id = $2")
             .bind(new_expires_at)
             .bind(&clean_id)

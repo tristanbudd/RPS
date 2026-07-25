@@ -1,5 +1,8 @@
 /// Run table and index initialization for the application
-pub async fn init_db(pool: &sqlx::PgPool, config: &crate::config::Config) -> Result<(), sqlx::Error> {
+pub async fn init_db(
+    pool: &sqlx::PgPool,
+    config: &crate::config::Config,
+) -> Result<(), sqlx::Error> {
     println!("Info | Initializing database schema...");
 
     sqlx::query(
