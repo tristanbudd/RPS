@@ -6,6 +6,7 @@ use axum::{
     Json, Router,
 };
 use chrono::{Duration, Utc};
+use magic_crypt::MagicCryptTrait;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -20,6 +21,13 @@ struct Config {
     database: DatabaseConfig,
     paste: PasteConfig,
     rate_limit: RateLimitConfig,
+    security: SecurityConfig,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+struct SecurityConfig {
+    password_protection_enabled: bool,
+    encryption_enabled: bool,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -65,6 +73,7 @@ struct AppState {
 #[derive(Deserialize)]
 struct CreatePaste {
     content: String,
+    password: Option<String>,
 }
 
 /// Response returned when a paste is created successfully
@@ -77,6 +86,12 @@ struct CreatePasteResponse {
 #[derive(sqlx::FromRow)]
 struct PasteRow {
     content: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct PasteRowWithPassword {
+    content: String,
+    password_hash: Option<String>,
 }
 
 /// Loads configuration from `config.toml` or falls back to environment defaults.
@@ -109,6 +124,10 @@ fn load_config() -> Config {
             enabled: true,
             max_concurrent_requests: 100,
             requests_per_minute: 300,
+        },
+        security: SecurityConfig {
+            password_protection_enabled: true,
+            encryption_enabled: true,
         },
     }
 }
@@ -200,6 +219,21 @@ async fn main() {
         .execute(&pool)
         .await
         .expect("Error | Failed to create expires_at index");
+
+    // Dynamic database schema management for optional password protection
+    if config.security.password_protection_enabled {
+        println!("Info | Password protection enabled. Ensuring password_hash column exists...");
+        sqlx::query("ALTER TABLE pastes ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)")
+            .execute(&pool)
+            .await
+            .expect("Error | Failed to add password_hash column to database");
+    } else {
+        println!("Info | Password protection disabled. Cleaning up password columns...");
+        sqlx::query("ALTER TABLE pastes DROP COLUMN IF EXISTS password_hash")
+            .execute(&pool)
+            .await
+            .expect("Error | Failed to drop password_hash column from database");
+    }
     println!("Success | Database schema initialized");
 
     // Setup sharing state
@@ -309,8 +343,33 @@ async fn create_paste(
             .into_response();
     }
 
+    // Calculate password hash if enabled and provided
+    let raw_password = payload.password.as_deref().filter(|p| !p.trim().is_empty());
+    let password_hash = if state.config.security.password_protection_enabled {
+        raw_password.map(|p| {
+            bcrypt::hash(p, bcrypt::DEFAULT_COST).expect("Error | Hashing password failed")
+        })
+    } else {
+        None
+    };
+
+    // Encrypt content if password protection and encryption are enabled
+    let final_content = if state.config.security.password_protection_enabled
+        && state.config.security.encryption_enabled
+    {
+        if let Some(password) = raw_password {
+            let mc = magic_crypt::new_magic_crypt!(password, 256);
+            mc.encrypt_str_to_base64(&payload.content)
+        } else {
+            payload.content.clone()
+        }
+    } else {
+        payload.content.clone()
+    };
+
     // Check if a paste with the exact same content already exists and is not expired (if enabled)
-    if state.config.paste.redirect_to_duplicate {
+    // We only redirect to duplicates if the new paste has no password protection.
+    if state.config.paste.redirect_to_duplicate && password_hash.is_none() {
         let existing: Option<(String,)> = sqlx::query_as(
             "SELECT id FROM pastes WHERE md5(content) = md5($1) AND content = $1 AND expires_at > $2 LIMIT 1"
         )
@@ -351,13 +410,22 @@ async fn create_paste(
     loop {
         let id = generate_id(&state.config.paste);
 
-        let result =
+        let result = if state.config.security.password_protection_enabled {
+            sqlx::query("INSERT INTO pastes (id, content, expires_at, password_hash) VALUES ($1, $2, $3, $4)")
+                .bind(&id)
+                .bind(&final_content)
+                .bind(expires_at)
+                .bind(&password_hash)
+                .execute(&state.pool)
+                .await
+        } else {
             sqlx::query("INSERT INTO pastes (id, content, expires_at) VALUES ($1, $2, $3)")
                 .bind(&id)
-                .bind(&payload.content)
+                .bind(&final_content)
                 .bind(expires_at)
                 .execute(&state.pool)
-                .await;
+                .await
+        };
 
         match result {
             Ok(_) => {
@@ -397,93 +465,253 @@ async fn create_paste(
 }
 
 /// Endpoint handler to get a paste JSON payload: GET /api/paste/:id
-async fn get_paste(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+async fn get_paste(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let provided_password = params.get("password").cloned().or_else(|| {
+        headers
+            .get("x-paste-password")
+            .and_then(|h| h.to_str().ok())
+            .map(|s| s.to_string())
+    });
+
     // Strip file extension if present (e.g. "abc12345.rs" -> "abc12345")
     let clean_id = match id.split_once('.') {
         Some((prefix, _)) => prefix.to_string(),
         None => id,
     };
 
-    // Query active paste from DB
-    let result = sqlx::query_as::<_, PasteRow>(
-        "SELECT content FROM pastes WHERE id = $1 AND expires_at > $2",
-    )
-    .bind(&clean_id)
-    .bind(Utc::now())
-    .fetch_optional(&state.pool)
-    .await;
+    let mut content = None;
+    let mut password_hash = None;
 
-    match result {
-        Ok(Some(row)) => {
-            // Re-extend expiration if extend_expiry_on_read is configured
-            if state.config.paste.extend_expiry_on_read {
-                let new_expires_at =
-                    Utc::now() + Duration::days(state.config.paste.default_expiry_days);
-                let _ = sqlx::query("UPDATE pastes SET expires_at = $1 WHERE id = $2")
-                    .bind(new_expires_at)
-                    .bind(&clean_id)
-                    .execute(&state.pool)
-                    .await;
-                println!(
-                    "Success | Extended expiration for paste '{}' by 30 days.",
-                    clean_id
-                );
+    if state.config.security.password_protection_enabled {
+        let result = sqlx::query_as::<_, PasteRowWithPassword>(
+            "SELECT content, password_hash FROM pastes WHERE id = $1 AND expires_at > $2",
+        )
+        .bind(&clean_id)
+        .bind(Utc::now())
+        .fetch_optional(&state.pool)
+        .await;
+
+        match result {
+            Ok(Some(row)) => {
+                content = Some(row.content);
+                password_hash = row.password_hash;
             }
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "content": row.content,
-                    "language": None::<String>
-                })),
-            )
-                .into_response()
+            Ok(None) => {
+                return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response()
+            }
+            Err(e) => {
+                eprintln!("Error | Database query failure: {:?}", e);
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response();
+            }
         }
-        Ok(None) => (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response(),
-        Err(e) => {
-            eprintln!("Error | Database query failure: {:?}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response()
+    } else {
+        let result = sqlx::query_as::<_, PasteRow>(
+            "SELECT content FROM pastes WHERE id = $1 AND expires_at > $2",
+        )
+        .bind(&clean_id)
+        .bind(Utc::now())
+        .fetch_optional(&state.pool)
+        .await;
+
+        match result {
+            Ok(Some(row)) => {
+                content = Some(row.content);
+            }
+            Ok(None) => {
+                return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response()
+            }
+            Err(e) => {
+                eprintln!("Error | Database query failure: {:?}", e);
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response();
+            }
         }
     }
+
+    let content = content.unwrap();
+
+    // Verify password if protected
+    let is_protected = password_hash.is_some();
+    if let Some(ref hash) = password_hash {
+        let is_valid = match &provided_password {
+            Some(password) => bcrypt::verify(password, hash).unwrap_or(false),
+            None => false,
+        };
+
+        if !is_valid {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "password_required" })),
+            )
+                .into_response();
+        }
+    }
+
+    // Decrypt content if password protection and encryption are enabled
+    let decrypted_content = if state.config.security.password_protection_enabled
+        && state.config.security.encryption_enabled
+        && is_protected
+    {
+        if let Some(ref password) = provided_password {
+            let mc = magic_crypt::new_magic_crypt!(password, 256);
+            match mc.decrypt_base64_to_string(&content) {
+                Ok(plain) => plain,
+                Err(e) => {
+                    eprintln!("Error | Decryption failure: {:?}", e);
+                    content
+                }
+            }
+        } else {
+            content
+        }
+    } else {
+        content
+    };
+
+    // Re-extend expiration if extend_expiry_on_read is configured
+    if state.config.paste.extend_expiry_on_read {
+        let new_expires_at = Utc::now() + Duration::days(state.config.paste.default_expiry_days);
+        let _ = sqlx::query("UPDATE pastes SET expires_at = $1 WHERE id = $2")
+            .bind(new_expires_at)
+            .bind(&clean_id)
+            .execute(&state.pool)
+            .await;
+        println!(
+            "Success | Extended expiration for paste '{}' by 30 days.",
+            clean_id
+        );
+    }
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "content": decrypted_content,
+            "language": None::<String>
+        })),
+    )
+        .into_response()
 }
 
 /// Endpoint handler to get raw paste text: GET /raw/:id
-async fn raw_paste(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
+async fn raw_paste(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let provided_password = params.get("password").cloned().or_else(|| {
+        headers
+            .get("x-paste-password")
+            .and_then(|h| h.to_str().ok())
+            .map(|s| s.to_string())
+    });
+
     let clean_id = match id.split_once('.') {
         Some((prefix, _)) => prefix.to_string(),
         None => id,
     };
 
-    let result = sqlx::query_as::<_, PasteRow>(
-        "SELECT content FROM pastes WHERE id = $1 AND expires_at > $2",
-    )
-    .bind(&clean_id)
-    .bind(Utc::now())
-    .fetch_optional(&state.pool)
-    .await;
+    let mut content = None;
+    let mut password_hash = None;
 
-    match result {
-        Ok(Some(row)) => {
-            if state.config.paste.extend_expiry_on_read {
-                let new_expires_at =
-                    Utc::now() + Duration::days(state.config.paste.default_expiry_days);
-                let _ = sqlx::query("UPDATE pastes SET expires_at = $1 WHERE id = $2")
-                    .bind(new_expires_at)
-                    .bind(&clean_id)
-                    .execute(&state.pool)
-                    .await;
-                println!(
-                    "Success | Extended expiration for paste '{}' by 30 days.",
-                    clean_id
-                );
+    if state.config.security.password_protection_enabled {
+        let result = sqlx::query_as::<_, PasteRowWithPassword>(
+            "SELECT content, password_hash FROM pastes WHERE id = $1 AND expires_at > $2",
+        )
+        .bind(&clean_id)
+        .bind(Utc::now())
+        .fetch_optional(&state.pool)
+        .await;
+
+        match result {
+            Ok(Some(row)) => {
+                content = Some(row.content);
+                password_hash = row.password_hash;
             }
-            (StatusCode::OK, row.content).into_response()
+            Ok(None) => {
+                return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response()
+            }
+            Err(e) => {
+                eprintln!("Error | Database query failure: {:?}", e);
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response();
+            }
         }
-        Ok(None) => (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response(),
-        Err(e) => {
-            eprintln!("Error | Database query failure: {:?}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response()
+    } else {
+        let result = sqlx::query_as::<_, PasteRow>(
+            "SELECT content FROM pastes WHERE id = $1 AND expires_at > $2",
+        )
+        .bind(&clean_id)
+        .bind(Utc::now())
+        .fetch_optional(&state.pool)
+        .await;
+
+        match result {
+            Ok(Some(row)) => {
+                content = Some(row.content);
+            }
+            Ok(None) => {
+                return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response()
+            }
+            Err(e) => {
+                eprintln!("Error | Database query failure: {:?}", e);
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response();
+            }
         }
     }
+
+    let content = content.unwrap();
+
+    // Verify password if protected
+    let is_protected = password_hash.is_some();
+    if let Some(ref hash) = password_hash {
+        let is_valid = match &provided_password {
+            Some(password) => bcrypt::verify(password, hash).unwrap_or(false),
+            None => false,
+        };
+
+        if !is_valid {
+            return (StatusCode::UNAUTHORIZED, "Password required").into_response();
+        }
+    }
+
+    // Decrypt content if password protection and encryption are enabled
+    let decrypted_content = if state.config.security.password_protection_enabled
+        && state.config.security.encryption_enabled
+        && is_protected
+    {
+        if let Some(ref password) = provided_password {
+            let mc = magic_crypt::new_magic_crypt!(password, 256);
+            match mc.decrypt_base64_to_string(&content) {
+                Ok(plain) => plain,
+                Err(e) => {
+                    eprintln!("Error | Decryption failure: {:?}", e);
+                    content
+                }
+            }
+        } else {
+            content
+        }
+    } else {
+        content
+    };
+
+    if state.config.paste.extend_expiry_on_read {
+        let new_expires_at = Utc::now() + Duration::days(state.config.paste.default_expiry_days);
+        let _ = sqlx::query("UPDATE pastes SET expires_at = $1 WHERE id = $2")
+            .bind(new_expires_at)
+            .bind(&clean_id)
+            .execute(&state.pool)
+            .await;
+        println!(
+            "Success | Extended expiration for paste '{}' by 30 days.",
+            clean_id
+        );
+    }
+    (StatusCode::OK, decrypted_content).into_response()
 }
 
 /// Middleware to enforce per-IP rate limiting
