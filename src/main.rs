@@ -72,8 +72,8 @@ async fn main() {
     // Build the Axum router
     let mut app = Router::new()
         .route("/api/paste", post(create_paste))
-        .route("/api/paste/:id", get(get_paste))
-        .route("/raw/:id", get(raw_paste))
+        .route("/api/paste/{id}", get(get_paste))
+        .route("/raw/{id}", get(raw_paste))
         .fallback_service(serve_dir)
         .layer(CompressionLayer::new())
         .layer(axum::middleware::from_fn(cache_control_middleware))

@@ -67,3 +67,84 @@ jobs:
 
       - name: Test
         run: cargo test --verbose
+
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: rps
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build binary
+        run: cargo build
+
+      - name: Launch server and verify
+        run: |
+          DATABASE_URL=postgres://postgres:postgres@localhost:5432/rps ./target/debug/RPS > server.log 2>&1 &
+          SERVER_PID=$!
+          
+          # Wait up to 10 seconds for the server to be ready
+          echo "Waiting for server to start..."
+          for i in {1..10}; do
+            if curl -s http://localhost:8000/ > /dev/null; then
+              echo "Server is up!"
+              break
+            fi
+            sleep 1
+          done
+          
+          if ! kill -0 $SERVER_PID 2>/dev/null; then
+            echo "Server crashed on startup. Server logs:"
+            cat server.log
+            exit 1
+          fi
+          
+          # Test paste creation
+          echo "Testing paste creation..."
+          RESPONSE=$(curl --fail -s -X POST -H "Content-Type: application/json" -d '{"content": "Integration test paste content"}' http://localhost:8000/api/paste)
+          echo "Response: $RESPONSE"
+          
+          PASTE_ID=$(echo $RESPONSE | jq -r .id)
+          if [ "$PASTE_ID" = "null" ] || [ -z "$PASTE_ID" ]; then
+            echo "Invalid paste ID returned: $PASTE_ID"
+            kill $SERVER_PID
+            cat server.log
+            exit 1
+          fi
+          
+          # Test paste retrieval
+          echo "Testing paste retrieval..."
+          RETRIEVED=$(curl --fail -s http://localhost:8000/api/paste/$PASTE_ID)
+          echo "Retrieved: $RETRIEVED"
+          
+          CONTENT=$(echo $RETRIEVED | jq -r .content)
+          if [ "$CONTENT" != "Integration test paste content" ]; then
+            echo "Retrieved content does not match. Expected 'Integration test paste content', got '$CONTENT'"
+            kill $SERVER_PID
+            cat server.log
+            exit 1
+          fi
+          
+          # Clean shutdown
+          kill $SERVER_PID
+          echo "Integration test completed successfully!"
