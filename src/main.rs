@@ -345,6 +345,15 @@ async fn create_paste(
 
     // Calculate password hash if enabled and provided
     let raw_password = payload.password.as_deref().filter(|p| !p.trim().is_empty());
+
+    if raw_password.is_some() && !state.config.security.password_protection_enabled {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Password protection is disabled on this server.",
+        )
+            .into_response();
+    }
+
     let password_hash = if state.config.security.password_protection_enabled {
         raw_password.map(|p| {
             bcrypt::hash(p, bcrypt::DEFAULT_COST).expect("Error | Hashing password failed")

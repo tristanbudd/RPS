@@ -11,7 +11,10 @@ param (
     [string]$Server = $env:RPS_SERVER,
 
     [alias("e")]
-    [string]$Ext
+    [string]$Ext,
+
+    [alias("p")]
+    [string]$Password
 )
 
 begin {
@@ -43,7 +46,7 @@ end {
     # If no content was piped or read from file, check if stdin is piped
     if ([string]::IsNullOrWhiteSpace($content)) {
         Write-Error "Error: No input provided via file or pipeline."
-        Write-Output "Usage: rps.ps1 [[-InputObject] <string>] [[-FilePath] <string>] [-Server <string>] [-Ext <string>]"
+        Write-Output "Usage: rps.ps1 [[-InputObject] <string>] [[-FilePath] <string>] [-Server <string>] [-Ext <string>] [-Password <string>]"
         Write-Output "       cat file.txt | .\rps.ps1"
         exit 1
     } else {
@@ -54,7 +57,11 @@ end {
     }
 
     # Prepare JSON payload
-    $body = @{ content = $content } | ConvertTo-Json
+    $payload = @{ content = $content }
+    if ($Password) {
+        $payload["password"] = $Password
+    }
+    $body = $payload | ConvertTo-Json
 
     try {
         $response = Invoke-RestMethod -Uri "$Server/api/paste" -Method Post -Body $body -ContentType "application/json"
@@ -66,7 +73,15 @@ end {
             Write-Output "$Server/$pasteId"
         }
     } catch {
-        Write-Error "Error: Failed to save paste. $_"
+        $errorMsg = $_.Exception.Message
+        if ($null -ne $_.ErrorDetails -and -not [string]::IsNullOrEmpty($_.ErrorDetails.Message)) {
+            $errorMsg = $_.ErrorDetails.Message
+        } elseif ($null -ne $_.Exception.Response) {
+            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+            $errorMsg = $reader.ReadToEnd()
+            $reader.Close()
+        }
+        Write-Error "Error: Failed to save paste. $errorMsg"
         exit 1
     }
 }
