@@ -35,6 +35,23 @@ pub struct PasteRowWithPassword {
     pub password_hash: Option<String>,
 }
 
+/// Validates that a password is safe, printable ASCII, has no spaces,
+/// and complies with reasonable length constraints (4 to 72 characters).
+fn validate_password(password: &str) -> Result<(), &'static str> {
+    if password.len() < 4 {
+        return Err("Password must be at least 4 chars long");
+    }
+    if password.len() > 72 {
+        return Err("Password must be at most 72 chars long");
+    }
+    for ch in password.chars() {
+        if !ch.is_ascii() || ch.is_ascii_control() || ch == ' ' {
+            return Err("Password must contain only printable ASCII characters and no spaces");
+        }
+    }
+    Ok(())
+}
+
 /// Endpoint handler to create a new paste: POST /api/paste
 pub async fn create_paste(
     State(state): State<AppState>,
@@ -55,12 +72,17 @@ pub async fn create_paste(
     // Calculate password hash if enabled and provided
     let raw_password = payload.password.as_deref().filter(|p| !p.trim().is_empty());
 
-    if raw_password.is_some() && !state.config.security.password_protection_enabled {
-        return (
-            StatusCode::BAD_REQUEST,
-            "Password protection is disabled on this server.",
-        )
-            .into_response();
+    if let Some(pwd) = raw_password {
+        if !state.config.security.password_protection_enabled {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Password protection is disabled on this server.",
+            )
+                .into_response();
+        }
+        if let Err(err_msg) = validate_password(pwd) {
+            return (StatusCode::BAD_REQUEST, err_msg).into_response();
+        }
     }
 
     let password_hash = if state.config.security.password_protection_enabled {
@@ -193,11 +215,27 @@ pub async fn get_paste(
             .map(|s| s.to_string())
     });
 
+    if let Some(ref pwd) = provided_password {
+        if pwd.len() > 72 {
+            return (StatusCode::BAD_REQUEST, "Password exceeds maximum length").into_response();
+        }
+    }
+
     // Strip file extension if present (e.g. "abc12345.rs" -> "abc12345")
     let clean_id = match id.split_once('.') {
         Some((prefix, _)) => prefix.to_string(),
         None => id,
     };
+
+    // Validate clean_id to be alphanumeric and dashes only, and reasonable length
+    if clean_id.is_empty()
+        || clean_id.len() > 50
+        || !clean_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return (StatusCode::BAD_REQUEST, "Invalid paste ID format").into_response();
+    }
 
     let row_data = if state.config.security.password_protection_enabled {
         let result = sqlx::query_as::<_, PasteRowWithPassword>(
@@ -305,10 +343,26 @@ pub async fn raw_paste(
             .map(|s| s.to_string())
     });
 
+    if let Some(ref pwd) = provided_password {
+        if pwd.len() > 72 {
+            return (StatusCode::BAD_REQUEST, "Password exceeds maximum length").into_response();
+        }
+    }
+
     let clean_id = match id.split_once('.') {
         Some((prefix, _)) => prefix.to_string(),
         None => id,
     };
+
+    // Validate clean_id to be alphanumeric and dashes only, and reasonable length
+    if clean_id.is_empty()
+        || clean_id.len() > 50
+        || !clean_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return (StatusCode::BAD_REQUEST, "Invalid paste ID format").into_response();
+    }
 
     let row_data = if state.config.security.password_protection_enabled {
         let result = sqlx::query_as::<_, PasteRowWithPassword>(
