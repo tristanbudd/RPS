@@ -12,7 +12,7 @@ keywords = ["pastebin", "hastebin", "server", "paste", "lightweight"]
 categories = ["web-programming::http-server", "network-programming"]
 
 [dependencies]
-axum = "0.7"
+axum = "0.8"
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.7", features = ["fs", "compression-full"] }
 sqlx = { version = "0.9.0", features = ["runtime-tokio", "postgres", "macros", "chrono"] }
