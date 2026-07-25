@@ -47,7 +47,7 @@ async fn main() {
         );
 
     // Run table initialization
-    init_db(&pool)
+    init_db(&pool, &config)
         .await
         .expect("Error | Database schema initialization failed");
 

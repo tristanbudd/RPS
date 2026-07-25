@@ -7,6 +7,13 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub paste: PasteConfig,
     pub rate_limit: RateLimitConfig,
+    pub security: SecurityConfig,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct SecurityConfig {
+    pub password_protection_enabled: bool,
+    pub encryption_enabled: bool,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -68,6 +75,10 @@ pub fn load_config() -> Config {
             enabled: true,
             max_concurrent_requests: 100,
             requests_per_minute: 300,
+        },
+        security: SecurityConfig {
+            password_protection_enabled: true,
+            encryption_enabled: true,
         },
     }
 }

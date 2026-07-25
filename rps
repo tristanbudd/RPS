@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+
+# rps - Minimalist CLI helper for terminal saving to RPS (Rust Paste Server)
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+# Default Server URL
+RPS_SERVER="${RPS_SERVER:-http://localhost:8000}"
+
+# Help message
+show_help() {
+  echo "Usage: rps [options] [file]"
+  echo ""
+  echo "Save text or code snippets to the paste server from the terminal."
+  echo ""
+  echo "Options:"
+  echo "  -s, --server URL     Specify the RPS server URL (default: \$RPS_SERVER or http://localhost:8000)"
+  echo "  -e, --ext EXTENSION  Specify the file extension for syntax highlighting"
+  echo "  -p, --password PWD   Specify a password to protect/encrypt the paste"
+  echo "  -h, --help           Show this help message"
+  echo ""
+  echo "Examples:"
+  echo "  cat file.txt | rps"
+  echo "  rps main.rs"
+  echo "  echo 'hello' | rps -e sh"
+  echo "  rps -p 'secret123' secure.txt"
+}
+
+# Parse command line options
+SERVER_URL="$RPS_SERVER"
+EXTENSION=""
+PASSWORD=""
+FILE_PATH=""
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    -s|--server)
+      SERVER_URL="$2"
+      shift 2
+      ;;
+    -e|--ext)
+      EXTENSION="$2"
+      shift 2
+      ;;
+    -p|--password)
+      PASSWORD="$2"
+      shift 2
+      ;;
+    -h|--help)
+      show_help
+      exit 0
+      ;;
+    -*)
+      echo "Error: Unknown option $1" >&2
+      show_help >&2
+      exit 1
+      ;;
+    *)
+      if [ -n "$FILE_PATH" ]; then
+        echo "Error: Only one file can be specified." >&2
+        exit 1
+      fi
+      FILE_PATH="$1"
+      shift
+      ;;
+  esac
+done
+
+# Read content and post
+if [ -n "$FILE_PATH" ]; then
+  if [ ! -f "$FILE_PATH" ]; then
+    echo "Error: File '$FILE_PATH' does not exist." >&2
+    exit 1
+  fi
+  
+  # Auto-detect extension if not explicitly specified
+  if [ -z "$EXTENSION" ]; then
+    FILENAME=$(basename "$FILE_PATH")
+    if [[ "$FILENAME" == *.* ]]; then
+      EXTENSION="${FILENAME##*.}"
+    fi
+  fi
+  
+  if command -v jq >/dev/null 2>&1; then
+    RESPONSE=$(jq -R -s --arg pwd "$PASSWORD" '{content: .} + (if $pwd != "" then {password: $pwd} else {} end)' < "$FILE_PATH" | curl -s -X POST -H "Content-Type: application/json" -d @- "$SERVER_URL/api/paste")
+  elif command -v python3 >/dev/null 2>&1; then
+    RESPONSE=$(python3 -c 'import sys, json; print(json.dumps({"content": sys.stdin.read(), "password": sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else None}))' "$PASSWORD" < "$FILE_PATH" | curl -s -X POST -H "Content-Type: application/json" -d @- "$SERVER_URL/api/paste")
+  elif command -v python >/dev/null 2>&1; then
+    RESPONSE=$(python -c 'import sys, json; print(json.dumps({"content": sys.stdin.read(), "password": sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else None}))' "$PASSWORD" < "$FILE_PATH" | curl -s -X POST -H "Content-Type: application/json" -d @- "$SERVER_URL/api/paste")
+  else
+    echo "Error: jq or python/python3 is required to encode the payload." >&2
+    exit 1
+  fi
+else
+  # Read from stdin
+  if [ -t 0 ]; then
+    echo "Error: No input provided via file or pipeline." >&2
+    show_help >&2
+    exit 1
+  fi
+  
+  if command -v jq >/dev/null 2>&1; then
+    RESPONSE=$(jq -R -s --arg pwd "$PASSWORD" '{content: .} + (if $pwd != "" then {password: $pwd} else {} end)' | curl -s -X POST -H "Content-Type: application/json" -d @- "$SERVER_URL/api/paste")
+  elif command -v python3 >/dev/null 2>&1; then
+    RESPONSE=$(python3 -c 'import sys, json; print(json.dumps({"content": sys.stdin.read(), "password": sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else None}))' "$PASSWORD" | curl -s -X POST -H "Content-Type: application/json" -d @- "$SERVER_URL/api/paste")
+  elif command -v python >/dev/null 2>&1; then
+    RESPONSE=$(python -c 'import sys, json; print(json.dumps({"content": sys.stdin.read(), "password": sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else None}))' "$PASSWORD" | curl -s -X POST -H "Content-Type: application/json" -d @- "$SERVER_URL/api/paste")
+  else
+    echo "Error: jq or python/python3 is required to encode the payload." >&2
+    exit 1
+  fi
+fi
+
+# Parse response ID
+PASTE_ID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
+
+if [ -z "$PASTE_ID" ]; then
+  echo "Error: Failed to save paste." >&2
+  echo "Server response: $RESPONSE" >&2
+  exit 1
+fi
+
+# Build final URL
+if [ -n "$EXTENSION" ]; then
+  echo "$SERVER_URL/$PASTE_ID.$EXTENSION"
+else
+  echo "$SERVER_URL/$PASTE_ID"
+fi

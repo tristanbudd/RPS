@@ -1,5 +1,5 @@
 /// Run table and index initialization for the application
-pub async fn init_db(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
+pub async fn init_db(pool: &sqlx::PgPool, config: &crate::config::Config) -> Result<(), sqlx::Error> {
     println!("Info | Initializing database schema...");
 
     sqlx::query(
@@ -22,6 +22,19 @@ pub async fn init_db(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
     sqlx::query("CREATE INDEX IF NOT EXISTS pastes_expires_at_idx ON pastes (expires_at)")
         .execute(pool)
         .await?;
+
+    // Dynamic database schema management for optional password protection
+    if config.security.password_protection_enabled {
+        println!("Info | Password protection enabled. Ensuring password_hash column exists...");
+        sqlx::query("ALTER TABLE pastes ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)")
+            .execute(pool)
+            .await?;
+    } else {
+        println!("Info | Password protection disabled. Cleaning up password columns...");
+        sqlx::query("ALTER TABLE pastes DROP COLUMN IF EXISTS password_hash")
+            .execute(pool)
+            .await?;
+    }
 
     println!("Success | Database schema initialized");
     Ok(())
