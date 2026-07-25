@@ -536,6 +536,28 @@ btnSave.addEventListener('click', save);
 btnNew.addEventListener('click', newPaste);
 btnDuplicate.addEventListener('click', duplicate);
 
+/**
+ * Validates password constraints (4-72 chars, printable ASCII, no spaces).
+ * @param {string} password - The password to validate.
+ * @returns {string|null} Null if valid, or an error message string if invalid.
+ */
+function validatePassword(password) {
+  if (password.length < 4) {
+    return 'Password must be at least 4 chars long';
+  }
+  if (password.length > 72) {
+    return 'Password must be at most 72 chars long';
+  }
+  for (let i = 0; i < password.length; i++) {
+    const code = password.charCodeAt(i);
+    // ASCII range 33-126 (printable without space)
+    if (code < 33 || code > 126) {
+      return 'Password must contain only printable ASCII characters and no spaces';
+    }
+  }
+  return null;
+}
+
 // Toggle password input visibility in edit mode by opening setter modal
 btnPasswordToggle.addEventListener('click', () => {
   if (state.mode !== 'edit') return;
@@ -547,8 +569,13 @@ btnPasswordToggle.addEventListener('click', () => {
 // Setter modal Apply
 passwordSetterForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  const val = setterPasswordInput.value.trim();
+  const val = setterPasswordInput.value;
   if (val) {
+    const errorMsg = validatePassword(val);
+    if (errorMsg) {
+      showToast(errorMsg);
+      return;
+    }
     state.currentPassword = val;
     btnPasswordToggle.classList.add('active-mode');
   } else {
@@ -576,5 +603,9 @@ passwordGateForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const enteredPassword = gatePasswordInput.value;
   if (!enteredPassword) return;
+  if (enteredPassword.length > 72) {
+    showToast('Password exceeds maximum length');
+    return;
+  }
   loadPaste(state.pasteId, state.lang, enteredPassword);
 });
