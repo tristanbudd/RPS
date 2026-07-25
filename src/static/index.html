@@ -63,6 +63,14 @@
     </a>
 
     <div id="actions" role="toolbar" aria-label="Paste actions">
+      <!-- Password toggle button -->
+      <button id="btn-password-toggle" class="act" title="Password Protection" aria-label="Toggle password protection">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="6" cy="10" r="3" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M8.5 7.5L12 4M10.5 5.5l1.5 1.5M12 4l1.5-1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+
       <!-- Save current paste button (hidden in view mode) -->
       <button id="btn-save" class="act" title="Save  Ctrl+S" aria-label="Save paste">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -119,5 +127,41 @@
 
   <!-- Notification alert for status messages -->
   <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Password Verification Modal (Glassmorphic) -->
+  <div id="password-gate" class="modal-overlay hidden">
+    <div class="modal-card">
+      <svg width="32" height="32" viewBox="0 0 16 16" fill="none" class="lock-icon" aria-hidden="true">
+        <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M5 7V4.5a3 3 0 0 1 6 0V7" stroke="currentColor" stroke-width="1.2"/>
+      </svg>
+      <h2>Password Required</h2>
+      <p>This paste is protected. Enter the password to unlock it.</p>
+      <form id="password-gate-form" class="modal-form">
+        <input type="password" id="gate-password" class="modal-input" placeholder="Enter password" required autocomplete="current-password"/>
+        <button type="submit" id="btn-unlock">Unlock</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Password Setter Modal (Glassmorphic) -->
+  <div id="password-setter" class="modal-overlay hidden">
+    <div class="modal-card">
+      <svg width="32" height="32" viewBox="0 0 16 16" fill="none" class="lock-icon" aria-hidden="true">
+        <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M5 7V4.5a3 3 0 0 1 6 0V7" stroke="currentColor" stroke-width="1.2"/>
+      </svg>
+      <h2>Set Password</h2>
+      <p>Lock this paste with a password. If a password is set, the content is encrypted before saving.</p>
+      <form id="password-setter-form" class="modal-form">
+        <input type="password" id="setter-password" class="modal-input" placeholder="Enter password" autocomplete="new-password"/>
+        <div class="modal-buttons">
+          <button type="submit" id="btn-apply-password">Apply</button>
+          <button type="button" id="btn-clear-password" class="sec">Clear</button>
+          <button type="button" id="btn-cancel-password" class="sec">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </body>
 </html>

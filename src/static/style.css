@@ -43,8 +43,8 @@
   --text-dim: #ccc;
   --act-hover: rgba(0,0,0,0.05);
   --act-active: rgba(0,0,0,0.09);
-  --caret: #2563eb;
-  --select: rgba(37,99,235,0.14);
+  --caret: #1a1a1a;
+  --select: rgba(0,0,0,0.08);
   --font-mono: "Cascadia Code", "JetBrains Mono", "Fira Code", ui-monospace, monospace;
   --font-ui: "Inter", system-ui, -apple-system, sans-serif;
   --toolbar-h: 44px;
@@ -186,7 +186,13 @@ body {
 }
 
 .act.active-mode {
-  color: var(--caret);
+  background: var(--text);
+  color: var(--bg);
+}
+.act.active-mode:hover {
+  background: var(--text);
+  color: var(--bg);
+  opacity: 0.85;
 }
 
 #content {
@@ -254,12 +260,12 @@ body {
 }
 
 body.typing #gutter {
-  border-right-color: #c7d7f5;
+  border-right-color: var(--border);
 }
 
 @keyframes caret-breathe {
-  0%, 100% { caret-color: #2563eb; }
-  50% { caret-color: #3b82f6; }
+  0%, 100% { caret-color: #1a1a1a; }
+  50% { caret-color: #767676; }
 }
 
 #editor:focus {
@@ -405,4 +411,116 @@ body.typing #gutter {
     width: max-content;
     text-align: center;
   }
+  #txt-password {
+    width: 110px;
+    height: 36px;
+    font-size: 0.9rem;
+  }
+}
+
+/* Glassmorphic Modal overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(26, 26, 26, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  width: 340px;
+  max-width: 90%;
+  text-align: center;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-card .lock-icon {
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.modal-card h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.modal-card p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.modal-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.modal-input {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  outline: none;
+  width: 100%;
+  transition: border-color var(--ease);
+}
+
+.modal-input:focus {
+  border-color: #1a1a1a; /* Keep input outline black */
+}
+
+/* Button styles inside modal */
+.modal-buttons {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.modal-card button {
+  flex: 1;
+  background: var(--text);
+  color: var(--bg);
+  border: none;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--ease), background var(--ease), color var(--ease);
+}
+
+.modal-card button:hover {
+  opacity: 0.9;
+}
+
+.modal-card button.sec {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.modal-card button.sec:hover {
+  background: var(--border);
 }
