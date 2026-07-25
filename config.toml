@@ -55,3 +55,13 @@ max_concurrent_requests = 100
 
 # Per-IP rate limiting: maximum requests allowed per IP address within a 60-second window.
 requests_per_minute = 300
+
+[security]
+# Enable or disable the password protection feature.
+# When disabled, existing password columns are cleaned from the database.
+password_protection_enabled = true
+
+# Enable or disable server-side content encryption for password-protected pastes.
+# Uses the user password to encrypt content symmetrically using AES-256 before database insertion.
+encryption_enabled = true
+

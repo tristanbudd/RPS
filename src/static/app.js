@@ -71,8 +71,17 @@ const btnSave = document.getElementById('btn-save');
 const btnNew = document.getElementById('btn-new');
 const btnDuplicate = document.getElementById('btn-duplicate');
 const btnRaw = document.getElementById('btn-raw');
+const btnPasswordToggle = document.getElementById('btn-password-toggle');
+const passwordGate = document.getElementById('password-gate');
+const passwordGateForm = document.getElementById('password-gate-form');
+const gatePasswordInput = document.getElementById('gate-password');
+const passwordSetter = document.getElementById('password-setter');
+const passwordSetterForm = document.getElementById('password-setter-form');
+const setterPasswordInput = document.getElementById('setter-password');
+const btnClearPassword = document.getElementById('btn-clear-password');
+const btnCancelPassword = document.getElementById('btn-cancel-password');
 
-let state = { mode: 'edit', pasteId: null, lang: null, content: '' };
+let state = { mode: 'edit', pasteId: null, lang: null, content: '', currentPassword: '' };
 let toastTimer = null;
 let rafPending = false;
 let currentLine = 1;
@@ -226,6 +235,18 @@ function setEditMode() {
   btnSave.removeAttribute('aria-disabled');
   btnDuplicate.classList.add('hidden');
   btnRaw.classList.add('hidden');
+
+  // Ensure password gate modal is hidden
+  passwordGate.classList.add('hidden');
+
+  // Manage password UI inputs
+  btnPasswordToggle.classList.remove('hidden');
+  if (state.currentPassword) {
+    btnPasswordToggle.classList.add('active-mode');
+  } else {
+    btnPasswordToggle.classList.remove('active-mode');
+  }
+
   scheduleGutterUpdate();
   editor.focus();
 }
@@ -255,7 +276,21 @@ async function setViewMode(content, lang, justSaved = false) {
   btnSave.classList.add('hidden');
   btnDuplicate.classList.remove('hidden');
   btnRaw.classList.remove('hidden');
-  btnRaw.href = state.pasteId ? '/raw/' + state.pasteId : '#';
+
+  // Hide editing password controls in view mode
+  btnPasswordToggle.classList.add('hidden');
+
+  // Update Raw link with password query if needed
+  if (state.pasteId) {
+    let url = '/raw/' + state.pasteId;
+    if (state.currentPassword) {
+      url += '?password=' + encodeURIComponent(state.currentPassword);
+    }
+    btnRaw.href = url;
+  } else {
+    btnRaw.href = '#';
+  }
+
   viewer.focus();
 
   if (justSaved) {
@@ -303,6 +338,10 @@ function setLoadingMode(id) {
   btnSave.classList.add('hidden');
   btnDuplicate.classList.add('hidden');
   btnRaw.classList.add('hidden');
+
+  // Hide password editing elements
+  btnPasswordToggle.classList.add('hidden');
+
   viewer.focus();
 }
 
@@ -311,6 +350,8 @@ function setLoadingMode(id) {
  */
 function duplicate() {
   editor.value = state.content;
+  state.currentPassword = '';
+  btnPasswordToggle.classList.remove('active-mode');
   history.pushState(null, '', '/');
   setEditMode();
   scheduleGutterUpdate();
@@ -324,6 +365,8 @@ function newPaste() {
     return;
   }
   editor.value = '';
+  state.currentPassword = '';
+  btnPasswordToggle.classList.remove('active-mode');
   history.pushState(null, '', '/');
   setEditMode();
 }
@@ -338,11 +381,17 @@ async function save() {
   btnSave.disabled = true;
   btnSave.setAttribute('aria-disabled', 'true');
   showToast('Saving...', 0);
+
+  const payload = { content };
+  if (state.currentPassword) {
+    payload.password = state.currentPassword;
+  }
+
   try {
     const res = await fetch('/api/paste', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error();
     const { id } = await res.json();
@@ -364,11 +413,32 @@ async function save() {
  * @param {string} id - The ID of the paste to load.
  * @param {string} lang - The language of the paste to display.
  */
-async function loadPaste(id, lang) {
+async function loadPaste(id, lang, password = null) {
   setLoadingMode(id);
   showToast('Loading paste...', 0);
   try {
-    const res = await fetch('/api/paste/' + id);
+    const headers = {};
+    if (password) {
+      headers['X-Paste-Password'] = password;
+    }
+    const res = await fetch('/api/paste/' + id, { headers });
+
+    if (res.status === 401) {
+      dismissToast();
+      state.pasteId = id;
+      state.lang = lang;
+
+      // Unhide password gate overlay
+      passwordGate.classList.remove('hidden');
+      gatePasswordInput.value = '';
+      gatePasswordInput.focus();
+
+      if (password) {
+        showToast('Incorrect password.');
+      }
+      return;
+    }
+
     if (res.status === 404) {
       editor.value = 'Paste not found or has expired.';
       history.pushState(null, '', '/');
@@ -380,6 +450,10 @@ async function loadPaste(id, lang) {
     const data = await res.json();
     dismissToast();
     state.pasteId = id;
+    if (password) {
+      state.currentPassword = password;
+    }
+    passwordGate.classList.add('hidden');
     setViewMode(data.content, lang || data.language || null);
   } catch {
     editor.value = '';
@@ -455,3 +529,46 @@ handlePath(window.location.pathname);
 btnSave.addEventListener('click', save);
 btnNew.addEventListener('click', newPaste);
 btnDuplicate.addEventListener('click', duplicate);
+
+// Toggle password input visibility in edit mode by opening setter modal
+btnPasswordToggle.addEventListener('click', () => {
+  if (state.mode !== 'edit') return;
+  setterPasswordInput.value = state.currentPassword;
+  passwordSetter.classList.remove('hidden');
+  setterPasswordInput.focus();
+});
+
+// Setter modal Apply
+passwordSetterForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const val = setterPasswordInput.value.trim();
+  if (val) {
+    state.currentPassword = val;
+    btnPasswordToggle.classList.add('active-mode');
+  } else {
+    state.currentPassword = '';
+    btnPasswordToggle.classList.remove('active-mode');
+  }
+  passwordSetter.classList.add('hidden');
+});
+
+// Setter modal Clear
+btnClearPassword.addEventListener('click', () => {
+  state.currentPassword = '';
+  setterPasswordInput.value = '';
+  btnPasswordToggle.classList.remove('active-mode');
+  passwordSetter.classList.add('hidden');
+});
+
+// Setter modal Cancel
+btnCancelPassword.addEventListener('click', () => {
+  passwordSetter.classList.add('hidden');
+});
+
+// Unlock protected paste
+passwordGateForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const enteredPassword = gatePasswordInput.value;
+  if (!enteredPassword) return;
+  loadPaste(state.pasteId, state.lang, enteredPassword);
+});
