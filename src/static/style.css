@@ -334,7 +334,7 @@ body.typing #gutter {
   pointer-events: none;
   transition: opacity 150ms ease, transform 150ms ease;
   white-space: nowrap;
-  z-index: 99;
+  z-index: 1000;
 }
 
 #toast.show {
