@@ -107,14 +107,25 @@ pub async fn create_paste(
     // Check if a paste with the exact same content already exists and is not expired (if enabled)
     // We only redirect to duplicates if the new paste has no password protection.
     if state.config.paste.redirect_to_duplicate && password_hash.is_none() {
-        let existing: Option<(String,)> = sqlx::query_as(
-            "SELECT id FROM pastes WHERE md5(content) = md5($1) AND content = $1 AND expires_at > $2 LIMIT 1"
-        )
-        .bind(&payload.content)
-        .bind(Utc::now())
-        .fetch_optional(&state.pool)
-        .await
-        .unwrap_or(None);
+        let existing: Option<(String,)> = if state.config.security.password_protection_enabled {
+            sqlx::query_as(
+                "SELECT id FROM pastes WHERE md5(content) = md5($1) AND content = $1 AND password_hash IS NULL AND expires_at > $2 LIMIT 1"
+            )
+            .bind(&payload.content)
+            .bind(Utc::now())
+            .fetch_optional(&state.pool)
+            .await
+            .unwrap_or(None)
+        } else {
+            sqlx::query_as(
+                "SELECT id FROM pastes WHERE md5(content) = md5($1) AND content = $1 AND expires_at > $2 LIMIT 1"
+            )
+            .bind(&payload.content)
+            .bind(Utc::now())
+            .fetch_optional(&state.pool)
+            .await
+            .unwrap_or(None)
+        };
 
         if let Some((existing_id,)) = existing {
             println!(
