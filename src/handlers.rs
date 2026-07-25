@@ -64,7 +64,7 @@ pub async fn create_paste(
     }
 
     let password_hash = if state.config.security.password_protection_enabled {
-        raw_password.map(|p| crate::security::hash_password(p))
+        raw_password.map(crate::security::hash_password)
     } else {
         None
     };
