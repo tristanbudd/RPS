@@ -32,6 +32,8 @@ Local config reference: [config.toml](config.toml).
 ### Completed
 
 - **Minimalist UI**: Simple, fast aesthetic with responsive transitions, dynamic scroll indicators.
+- **Password Protection & Content Encryption**: Optional client-password protection hashed with Bcrypt, and optional server-side AES-256-CBC content encryption using the client password before database storage.
+- **Strict Input Validation**: Restricts passwords to printable ASCII characters (excluding spaces and unicode spaces) between 4 and 72 characters to protect against brute-force, spoofing, and Bcrypt DoS vectors. Paste IDs are restricted to alphanumeric and dashes.
 - **Dynamic Syntax Highlighting**: Automatic detection and loading of Highlight.js libraries for code extensions, only downloaded when viewing a non-plaintext file.
 - **SPA Path-Based Extensions**: Accessing `/{PASTE_ID}.rs` or `/{PASTE_ID}.js` directly loads the syntax-highlighted code.
 - **Duplicate & Edit Flow**: Clone any existing paste into the editor context with a single click to make updates and save a new version.
@@ -42,7 +44,6 @@ Local config reference: [config.toml](config.toml).
 
 ### Planned Updates
 
-- **Password Protection**: Optional encryption or password validation before loading sensitive snippets.
 - **Admin Dashboard**: A panel to monitor active pastes, storage limits, and server metrics.
 
 ---
@@ -89,7 +90,7 @@ cd RPS
    Open the `.env` file and set a custom username (`DB_USERNAME`) and a strong, randomly generated password (`DB_PASSWORD`).
 
 2. **Application Configuration (`config.toml`)**:
-   A configuration file is provided in `config.toml`. You can edit it to customize settings like the server host, port, maximum paste length limits, and cleanup task intervals:
+   A configuration file is provided in `config.toml`. You can edit it to customize settings like the server host, port, maximum paste length limits, cleanup task intervals, and security policies:
 
    ```toml
    [server]
@@ -99,6 +100,10 @@ cd RPS
    [paste]
    default_expiry_days = 30
    max_length = 5000000
+
+   [security]
+   password_protection_enabled = true
+   encryption_enabled = true
    ```
 
    > [!NOTE]
