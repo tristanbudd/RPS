@@ -199,7 +199,7 @@ pub async fn get_paste(
         None => id,
     };
 
-    let (content, password_hash) = if state.config.security.password_protection_enabled {
+    let row_data = if state.config.security.password_protection_enabled {
         let result = sqlx::query_as::<_, PasteRowWithPassword>(
             "SELECT content, password_hash FROM pastes WHERE id = $1 AND expires_at > $2",
         )
@@ -209,10 +209,8 @@ pub async fn get_paste(
         .await;
 
         match result {
-            Ok(Some(row)) => (row.content, row.password_hash),
-            Ok(None) => {
-                return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response()
-            }
+            Ok(Some(row)) => Some((row.content, row.password_hash)),
+            Ok(None) => None,
             Err(e) => {
                 eprintln!("Error | Database query failure: {:?}", e);
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response();
@@ -228,15 +226,18 @@ pub async fn get_paste(
         .await;
 
         match result {
-            Ok(Some(row)) => (row.content, None),
-            Ok(None) => {
-                return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response()
-            }
+            Ok(Some(row)) => Some((row.content, None)),
+            Ok(None) => None,
             Err(e) => {
                 eprintln!("Error | Database query failure: {:?}", e);
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response();
             }
         }
+    };
+
+    let (content, password_hash) = match row_data {
+        Some(data) => data,
+        None => return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response(),
     };
 
     // Verify password if protected
@@ -260,10 +261,10 @@ pub async fn get_paste(
         if let Some(ref password) = provided_password {
             crate::security::decrypt_content(&content, password)
         } else {
-            content
+            content.clone()
         }
     } else {
-        content
+        content.clone()
     };
 
     // Re-extend expiration if extend_expiry_on_read is configured
@@ -309,7 +310,7 @@ pub async fn raw_paste(
         None => id,
     };
 
-    let (content, password_hash) = if state.config.security.password_protection_enabled {
+    let row_data = if state.config.security.password_protection_enabled {
         let result = sqlx::query_as::<_, PasteRowWithPassword>(
             "SELECT content, password_hash FROM pastes WHERE id = $1 AND expires_at > $2",
         )
@@ -319,10 +320,8 @@ pub async fn raw_paste(
         .await;
 
         match result {
-            Ok(Some(row)) => (row.content, row.password_hash),
-            Ok(None) => {
-                return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response()
-            }
+            Ok(Some(row)) => Some((row.content, row.password_hash)),
+            Ok(None) => None,
             Err(e) => {
                 eprintln!("Error | Database query failure: {:?}", e);
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response();
@@ -338,15 +337,18 @@ pub async fn raw_paste(
         .await;
 
         match result {
-            Ok(Some(row)) => (row.content, None),
-            Ok(None) => {
-                return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response()
-            }
+            Ok(Some(row)) => Some((row.content, None)),
+            Ok(None) => None,
             Err(e) => {
                 eprintln!("Error | Database query failure: {:?}", e);
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response();
             }
         }
+    };
+
+    let (content, password_hash) = match row_data {
+        Some(data) => data,
+        None => return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response(),
     };
 
     // Verify password if protected
@@ -370,10 +372,10 @@ pub async fn raw_paste(
         if let Some(ref password) = provided_password {
             crate::security::decrypt_content(&content, password)
         } else {
-            content
+            content.clone()
         }
     } else {
-        content
+        content.clone()
     };
 
     if state.config.paste.extend_expiry_on_read {
