@@ -493,10 +493,7 @@ async fn get_paste(
         None => id,
     };
 
-    let mut content = None;
-    let mut password_hash = None;
-
-    if state.config.security.password_protection_enabled {
+    let (content, password_hash) = if state.config.security.password_protection_enabled {
         let result = sqlx::query_as::<_, PasteRowWithPassword>(
             "SELECT content, password_hash FROM pastes WHERE id = $1 AND expires_at > $2",
         )
@@ -506,10 +503,7 @@ async fn get_paste(
         .await;
 
         match result {
-            Ok(Some(row)) => {
-                content = Some(row.content);
-                password_hash = row.password_hash;
-            }
+            Ok(Some(row)) => (row.content, row.password_hash),
             Ok(None) => {
                 return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response()
             }
@@ -528,9 +522,7 @@ async fn get_paste(
         .await;
 
         match result {
-            Ok(Some(row)) => {
-                content = Some(row.content);
-            }
+            Ok(Some(row)) => (row.content, None),
             Ok(None) => {
                 return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response()
             }
@@ -539,9 +531,7 @@ async fn get_paste(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response();
             }
         }
-    }
-
-    let content = content.unwrap();
+    };
 
     // Verify password if protected
     let is_protected = password_hash.is_some();
@@ -624,10 +614,7 @@ async fn raw_paste(
         None => id,
     };
 
-    let mut content = None;
-    let mut password_hash = None;
-
-    if state.config.security.password_protection_enabled {
+    let (content, password_hash) = if state.config.security.password_protection_enabled {
         let result = sqlx::query_as::<_, PasteRowWithPassword>(
             "SELECT content, password_hash FROM pastes WHERE id = $1 AND expires_at > $2",
         )
@@ -637,10 +624,7 @@ async fn raw_paste(
         .await;
 
         match result {
-            Ok(Some(row)) => {
-                content = Some(row.content);
-                password_hash = row.password_hash;
-            }
+            Ok(Some(row)) => (row.content, row.password_hash),
             Ok(None) => {
                 return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response()
             }
@@ -659,9 +643,7 @@ async fn raw_paste(
         .await;
 
         match result {
-            Ok(Some(row)) => {
-                content = Some(row.content);
-            }
+            Ok(Some(row)) => (row.content, None),
             Ok(None) => {
                 return (StatusCode::NOT_FOUND, "Paste not found or has expired").into_response()
             }
@@ -670,9 +652,7 @@ async fn raw_paste(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Database query error").into_response();
             }
         }
-    }
-
-    let content = content.unwrap();
+    };
 
     // Verify password if protected
     let is_protected = password_hash.is_some();
