@@ -7,7 +7,6 @@ use axum::{
     Json,
 };
 use chrono::{Duration, Utc};
-use magic_crypt::MagicCryptTrait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -65,9 +64,7 @@ pub async fn create_paste(
     }
 
     let password_hash = if state.config.security.password_protection_enabled {
-        raw_password.map(|p| {
-            bcrypt::hash(p, bcrypt::DEFAULT_COST).expect("Error | Hashing password failed")
-        })
+        raw_password.map(|p| crate::security::hash_password(p))
     } else {
         None
     };
@@ -77,8 +74,7 @@ pub async fn create_paste(
         && state.config.security.encryption_enabled
     {
         if let Some(password) = raw_password {
-            let mc = magic_crypt::new_magic_crypt!(password, 256);
-            mc.encrypt_str_to_base64(&payload.content)
+            crate::security::encrypt_content(&payload.content, password)
         } else {
             payload.content.clone()
         }
@@ -247,7 +243,7 @@ pub async fn get_paste(
     let is_protected = password_hash.is_some();
     if let Some(ref hash) = password_hash {
         let is_valid = match &provided_password {
-            Some(password) => bcrypt::verify(password, hash).unwrap_or(false),
+            Some(password) => crate::security::verify_password(password, hash),
             None => false,
         };
 
@@ -262,14 +258,7 @@ pub async fn get_paste(
         && is_protected
     {
         if let Some(ref password) = provided_password {
-            let mc = magic_crypt::new_magic_crypt!(password, 256);
-            match mc.decrypt_base64_to_string(&content) {
-                Ok(plain) => plain,
-                Err(e) => {
-                    eprintln!("Error | Decryption failure: {:?}", e);
-                    content
-                }
-            }
+            crate::security::decrypt_content(&content, password)
         } else {
             content
         }
@@ -364,7 +353,7 @@ pub async fn raw_paste(
     let is_protected = password_hash.is_some();
     if let Some(ref hash) = password_hash {
         let is_valid = match &provided_password {
-            Some(password) => bcrypt::verify(password, hash).unwrap_or(false),
+            Some(password) => crate::security::verify_password(password, hash),
             None => false,
         };
 
@@ -379,14 +368,7 @@ pub async fn raw_paste(
         && is_protected
     {
         if let Some(ref password) = provided_password {
-            let mc = magic_crypt::new_magic_crypt!(password, 256);
-            match mc.decrypt_base64_to_string(&content) {
-                Ok(plain) => plain,
-                Err(e) => {
-                    eprintln!("Error | Decryption failure: {:?}", e);
-                    content
-                }
-            }
+            crate::security::decrypt_content(&content, password)
         } else {
             content
         }

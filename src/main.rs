@@ -3,6 +3,7 @@ mod config;
 mod db;
 mod handlers;
 mod middleware;
+mod security;
 mod utils;
 
 use axum::{
