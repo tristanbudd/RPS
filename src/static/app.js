@@ -393,7 +393,10 @@ async function save() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) throw new Error();
+    if (!res.ok) {
+      const errMsg = await res.text();
+      throw new Error(errMsg || 'Save failed. Try again.');
+    }
     const { id } = await res.json();
     dismissToast();
     btnSave.disabled = false;
@@ -401,8 +404,8 @@ async function save() {
     history.pushState({ id }, '', '/' + id);
     state.pasteId = id;
     setViewMode(content, null, true);
-  } catch {
-    showToast('Save failed. Try again.');
+  } catch (e) {
+    showToast(e.message || 'Save failed. Try again.');
     btnSave.disabled = false;
     btnSave.removeAttribute('aria-disabled');
   }
@@ -446,7 +449,10 @@ async function loadPaste(id, lang, password = null) {
       showToast('Paste not found.');
       return;
     }
-    if (!res.ok) throw new Error();
+    if (!res.ok) {
+      const errMsg = await res.text();
+      throw new Error(errMsg || 'Failed to load paste.');
+    }
     const data = await res.json();
     dismissToast();
     state.pasteId = id;
@@ -455,10 +461,10 @@ async function loadPaste(id, lang, password = null) {
     }
     passwordGate.classList.add('hidden');
     setViewMode(data.content, lang || data.language || null);
-  } catch {
+  } catch (e) {
     editor.value = '';
     setEditMode();
-    showToast('Failed to load paste.');
+    showToast(e.message || 'Failed to load paste.');
   }
 }
 
