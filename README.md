@@ -38,10 +38,10 @@ Local config reference: [config.toml](config.toml).
 - **Accidental Loss Prevention**: Prompts for confirmation when initiating a new paste if the current editor contains unsaved modifications.
 - **IP Rate Limiting**: Embedded middleware tracking request frequencies per IP to prevent spamming and DoS attempts.
 - **Optimized Caching & Compression**: Automatic Gzip/Brotli file compression via tower-http and cache-control headers on static assets.
+- **Command Line Client**: Native CLI scripts for terminal saving (`rps` / `rps.ps1`) with pipeline stdin support and automatic file extension detection.
 
 ### Planned Updates
 
-- **Command Line Client**: A minimalist CLI helper (curl-based or native) to allow saving directly from the terminal.
 - **Password Protection**: Optional encryption or password validation before loading sensitive snippets.
 - **Admin Dashboard**: A panel to monitor active pastes, storage limits, and server metrics.
 
@@ -50,9 +50,11 @@ Local config reference: [config.toml](config.toml).
 ## Preview Images
 
 ### Code Editor Interface
+
 <img width="1920" height="945" alt="Code Editor Interface" src="https://github.com/user-attachments/assets/ea528631-3db3-4fac-8927-09e6f6d362c1" />
 
 ### Code Viewer with Syntax Highlighting
+
 <img width="1920" height="945" alt="Code Viewer with Syntax Highlighting" src="https://github.com/user-attachments/assets/cb7ed451-3d1e-4632-a0eb-acc967fa64d8" />
 
 ---
@@ -79,13 +81,16 @@ cd RPS
 
 1. **Environment Variables (.env)**:
    Copy the example environment file and configure secure database credentials:
+
    ```bash
    cp .env.example .env
    ```
+
    Open the `.env` file and set a custom username (`DB_USERNAME`) and a strong, randomly generated password (`DB_PASSWORD`).
 
 2. **Application Configuration (`config.toml`)**:
    A configuration file is provided in `config.toml`. You can edit it to customize settings like the server host, port, maximum paste length limits, and cleanup task intervals:
+
    ```toml
    [server]
    host = "0.0.0.0"
@@ -115,6 +120,65 @@ docker compose up -d --build
 ```
 
 The server will be accessible locally at `http://localhost:18000`.
+
+---
+
+## Command Line Interface (CLI)
+
+RPS includes platform-native CLI helper scripts to save text and code snippets directly from your terminal.
+
+### 1. Installation
+
+- **Linux / macOS (Bash/Zsh)**:
+  Make the `rps` script executable and copy/symlink it to your local bin path:
+
+  ```bash
+  chmod +x rps
+  sudo ln -s "$(pwd)/rps" /usr/local/bin/rps
+  ```
+
+- **Windows (PowerShell)**:
+  Add the directory containing `rps.ps1` to your User PATH, or execute it directly:
+  ```powershell
+  .\rps.ps1 -FilePath .\file.txt
+  ```
+
+### 2. Configuration
+
+By default, the CLI scripts target `http://localhost:8000`. You can configure a custom remote server URL using the `RPS_SERVER` environment variable:
+
+```bash
+# Linux/macOS
+export RPS_SERVER="https://rps.tristanbudd.com"
+
+# Windows PowerShell
+$env:RPS_SERVER="https://rps.tristanbudd.com"
+```
+
+### 3. Usage Examples
+
+- **Piping from standard input**:
+
+  ```bash
+  cat file.txt | rps
+  echo "hello world" | rps -e txt
+  ```
+
+- **Passing a file directly** (automatically detects the file extension for syntax highlighting routing):
+
+  ```bash
+  rps main.rs   # Will output: https://rps.tristanbudd.com/abc12345.rs
+  ```
+
+- **Specifying server or extension options**:
+
+  ```bash
+  # Linux/macOS:
+  rps -s http://localhost:8000 -e py script.txt
+
+  # Windows:
+  .\rps.ps1 -Server http://localhost:8000 -Ext py -FilePath script.txt
+  ```
 
 ---
 

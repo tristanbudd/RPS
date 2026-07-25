@@ -12,6 +12,7 @@ Allow: /favicon-96x96.png
 Allow: /apple-touch-icon.png
 Allow: /opengraph-image.jpg
 Allow: /site.webmanifest
+Allow: /llms.txt
 Disallow: /api/
 Disallow: /raw/
 

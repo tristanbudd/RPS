@@ -1,0 +1,24 @@
+# RPS (Rust Paste Server)
+
+> A simple, ultra-fast, and minimalist pastebin service for sharing code and text snippets.
+
+RPS provides a clean, zero-bloat editor to quickly paste text, save it, and share a link.
+
+## Using the Website
+
+- [Create a Paste](https://rps.tristanbudd.com/) - Open the web editor to write and save your code or text.
+- [Duplicate & Edit](https://rps.tristanbudd.com/) - Load an existing paste, make changes, and save it as a new version.
+- [Syntax Highlighting](https://rps.tristanbudd.com/) - View code with automatic formatting and syntax highlighting based on file extension.
+- [Raw Paste Content](https://rps.tristanbudd.com/) - Retrieve the raw plaintext content of any paste directly.
+
+## Features
+
+- **Minimalist Interface**: No ads, trackers, or distraction. Just write, save, and share.
+- **Accidental Loss Prevention**: Prompts you if you try to start a new paste while having unsaved modifications.
+- **Auto-Formatting**: Supports file extension routing (like `/id.rs` or `/id.js`) to render syntax highlighting instantly.
+
+## Command Line Interface (CLI)
+
+You can save files or pipe terminal outputs directly to the paste server:
+- **Bash (Linux/macOS)**: `cat file.txt | rps` or `rps file.txt`
+- **PowerShell (Windows)**: `cat file.txt | .\rps.ps1` or `.\rps.ps1 file.txt`
