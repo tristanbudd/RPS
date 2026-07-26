@@ -7,7 +7,6 @@ use axum::{
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use sysinfo::System;
 
 #[derive(Clone, Debug)]
@@ -67,6 +66,53 @@ where
             StatusCode::UNAUTHORIZED,
             "Unauthorized: Invalid or expired session",
         ))
+    }
+}
+
+impl<S> axum::extract::OptionalFromRequestParts<S> for AdminUser
+where
+    S: Send + Sync,
+    crate::AppState: axum::extract::FromRef<S>,
+{
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &S,
+    ) -> Result<Option<Self>, Self::Rejection> {
+        let app_state = crate::AppState::from_ref(state);
+
+        let cookie_header = parts
+            .headers
+            .get(axum::http::header::COOKIE)
+            .and_then(|value| value.to_str().ok());
+
+        let mut session_token = None;
+        if let Some(cookie_str) = cookie_header {
+            for cookie in cookie_str.split(';') {
+                let parts: Vec<&str> = cookie.trim().split('=').collect();
+                if parts.len() == 2 && parts[0] == "admin_session" {
+                    session_token = Some(parts[1].to_string());
+                    break;
+                }
+            }
+        }
+
+        let token = match session_token {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        let sessions = app_state.admin_sessions.lock().await;
+        if let Some(session) = sessions.get(&token) {
+            if session.expires_at > chrono::Utc::now() {
+                return Ok(Some(AdminUser {
+                    username: session.username.clone(),
+                }));
+            }
+        }
+
+        Ok(None)
     }
 }
 
