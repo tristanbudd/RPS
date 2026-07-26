@@ -464,15 +464,47 @@ pub struct AdminPasteItem {
     pub is_password_protected: bool,
 }
 
-/// Retrieves list of recent pastes: GET /api/admin/pastes
-pub async fn list_pastes(_admin: AdminUser, State(state): State<AppState>) -> impl IntoResponse {
+#[derive(Deserialize)]
+pub struct ListPastesParams {
+    pub page: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct PaginatedPastesResponse {
+    pub pastes: Vec<AdminPasteItem>,
+    pub total_count: i64,
+    pub page: i64,
+    pub limit: i64,
+}
+
+/// Retrieves paginated list of pastes: GET /api/admin/pastes
+pub async fn list_pastes(
+    _admin: AdminUser,
+    State(state): State<AppState>,
+    Query(params): Query<ListPastesParams>,
+) -> impl IntoResponse {
+    let page = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(25).max(1);
+    let offset = (page - 1) * limit;
+
+    // Get total count of pastes
+    let total_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pastes")
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(0);
+
     let query_str = if state.config.security.password_protection_enabled {
-        "SELECT id, created_at, expires_at, LENGTH(content) as length, (password_hash IS NOT NULL) as is_protected FROM pastes ORDER BY created_at DESC LIMIT 100"
+        "SELECT id, created_at, expires_at, LENGTH(content) as length, (password_hash IS NOT NULL) as is_protected FROM pastes ORDER BY created_at DESC LIMIT $1 OFFSET $2"
     } else {
-        "SELECT id, created_at, expires_at, LENGTH(content) as length, false as is_protected FROM pastes ORDER BY created_at DESC LIMIT 100"
+        "SELECT id, created_at, expires_at, LENGTH(content) as length, false as is_protected FROM pastes ORDER BY created_at DESC LIMIT $1 OFFSET $2"
     };
 
-    let rows = sqlx::query(query_str).fetch_all(&state.pool).await;
+    let rows = sqlx::query(query_str)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.pool)
+        .await;
 
     let mut items = Vec::new();
     if let Ok(rows) = rows {
@@ -496,7 +528,12 @@ pub async fn list_pastes(_admin: AdminUser, State(state): State<AppState>) -> im
         }
     }
 
-    Json(items)
+    Json(PaginatedPastesResponse {
+        pastes: items,
+        total_count,
+        page,
+        limit,
+    })
 }
 
 /// Deletes a paste: DELETE /api/admin/pastes/{id}

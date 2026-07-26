@@ -410,6 +410,24 @@
             </tbody>
           </table>
         </div>
+
+        <!-- Pagination controls -->
+        <div id="pagination-controls" style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem;">
+            <span style="color: var(--text-muted); font-family: var(--font-sans);">Rows per page:</span>
+            <select id="select-limit" style="background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 4px 8px; outline: none; cursor: pointer; font-family: var(--font-sans);">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <button id="btn-prev-page" class="btn-mono-sec" style="padding: 4px 12px; font-size: 0.8rem;" disabled>Prev</button>
+            <span id="lbl-page-info" style="font-size: 0.82rem; color: var(--text-muted); font-family: var(--font-sans);">Page 1 of 1</span>
+            <button id="btn-next-page" class="btn-mono-sec" style="padding: 4px 12px; font-size: 0.8rem;" disabled>Next</button>
+          </div>
+        </div>
       </main>
 
     </div>
@@ -420,6 +438,10 @@
 
   <!-- Dashboard Client Logic -->
   <script>
+    let currentPage = 1;
+    let currentLimit = 25;
+    let totalPages = 1;
+
     function showToast(message, isError = false) {
       const toast = document.getElementById('toast');
       toast.textContent = message;
@@ -531,15 +553,16 @@
         lblActive.textContent = metrics.active_pastes;
         lblActive.classList.remove('loading-pulse');
 
-        // Fetch pastes list
-        const pastesRes = await fetch('/api/admin/pastes');
+        // Fetch pastes list with pagination
+        const pastesRes = await fetch(`/api/admin/pastes?page=${currentPage}&limit=${currentLimit}`);
         if (pastesRes.status === 401 || pastesRes.status === 403) {
           checkAuth();
           return;
         }
-        const pastes = await pastesRes.json();
+        const data = await pastesRes.json();
         
-        renderPastesTable(pastes);
+        renderPastesTable(data.pastes);
+        updatePagination(data.total_count, data.page, data.limit);
 
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
@@ -762,6 +785,23 @@
       loadDashboardData();
     }
 
+    function updatePagination(totalCount, page, limit) {
+      currentPage = page;
+      currentLimit = limit;
+      totalPages = Math.ceil(totalCount / limit) || 1;
+
+      // Handle edge case where deletes leave the page empty
+      if (currentPage > totalPages && currentPage > 1) {
+        currentPage = totalPages;
+        loadDashboardData();
+        return;
+      }
+
+      document.getElementById('lbl-page-info').textContent = `Page ${currentPage} of ${totalPages}`;
+      document.getElementById('btn-prev-page').disabled = currentPage <= 1;
+      document.getElementById('btn-next-page').disabled = currentPage >= totalPages;
+    }
+
     // Init
     document.addEventListener('DOMContentLoaded', () => {
       checkAuth();
@@ -786,6 +826,26 @@
       if (btnBulkDelete) {
         btnBulkDelete.addEventListener('click', deleteSelectedPastes);
       }
+
+      document.getElementById('select-limit').addEventListener('change', (e) => {
+        currentLimit = parseInt(e.target.value, 10);
+        currentPage = 1;
+        loadDashboardData();
+      });
+
+      document.getElementById('btn-prev-page').addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          loadDashboardData();
+        }
+      });
+
+      document.getElementById('btn-next-page').addEventListener('click', () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          loadDashboardData();
+        }
+      });
 
       // Auto refresh metrics every 30 seconds
       setInterval(() => {
