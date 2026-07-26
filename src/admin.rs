@@ -456,11 +456,13 @@ pub struct AdminPasteItem {
 
 /// Retrieves list of recent pastes: GET /api/admin/pastes
 pub async fn list_pastes(_admin: AdminUser, State(state): State<AppState>) -> impl IntoResponse {
-    let rows = sqlx::query(
+    let query_str = if state.config.security.password_protection_enabled {
         "SELECT id, created_at, expires_at, LENGTH(content) as length, (password_hash IS NOT NULL) as is_protected FROM pastes ORDER BY created_at DESC LIMIT 100"
-    )
-    .fetch_all(&state.pool)
-    .await;
+    } else {
+        "SELECT id, created_at, expires_at, LENGTH(content) as length, false as is_protected FROM pastes ORDER BY created_at DESC LIMIT 100"
+    };
+
+    let rows = sqlx::query(query_str).fetch_all(&state.pool).await;
 
     let mut items = Vec::new();
     if let Ok(rows) = rows {
