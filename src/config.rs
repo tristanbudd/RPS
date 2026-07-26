@@ -8,6 +8,8 @@ pub struct Config {
     pub paste: PasteConfig,
     pub rate_limit: RateLimitConfig,
     pub security: SecurityConfig,
+    #[serde(default)]
+    pub admin: AdminConfig,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -45,15 +47,71 @@ pub struct RateLimitConfig {
     pub requests_per_minute: usize,
 }
 
-/// Loads configuration from `config.toml` or falls back to environment defaults.
-pub fn load_config() -> Config {
-    if let Ok(content) = std::fs::read_to_string("config.toml") {
-        if let Ok(cfg) = toml::from_str::<Config>(&content) {
-            println!("Success | Configuration loaded successfully from config.toml");
-            return cfg;
+#[derive(Deserialize, Clone, Debug)]
+pub struct AdminConfig {
+    #[serde(default)]
+    pub github_client_id: String,
+    #[serde(default)]
+    pub github_client_secret: String,
+    #[serde(default)]
+    pub github_allowed_username: String,
+    #[serde(default = "default_database_storage_limit_bytes")]
+    pub database_storage_limit_bytes: u64,
+}
+
+fn default_database_storage_limit_bytes() -> u64 {
+    10 * 1024 * 1024 * 1024 // 10 GB
+}
+
+impl Default for AdminConfig {
+    fn default() -> Self {
+        Self {
+            github_client_id: std::env::var("GITHUB_CLIENT_ID").unwrap_or_default(),
+            github_client_secret: std::env::var("GITHUB_CLIENT_SECRET").unwrap_or_default(),
+            github_allowed_username: std::env::var("GITHUB_ALLOWED_USERNAME").unwrap_or_default(),
+            database_storage_limit_bytes: std::env::var("DATABASE_STORAGE_LIMIT_BYTES")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or_else(default_database_storage_limit_bytes),
         }
     }
-    println!("Info | config.toml not found or invalid; falling back to environment settings");
+}
+
+/// Loads configuration from `config.toml` or falls back to environment defaults.
+pub fn load_config() -> Config {
+    let mut config = if let Ok(content) = std::fs::read_to_string("config.toml") {
+        if let Ok(cfg) = toml::from_str::<Config>(&content) {
+            println!("Success | Configuration loaded successfully from config.toml");
+            cfg
+        } else {
+            println!("Warning | Failed to parse config.toml; using default configuration");
+            default_config()
+        }
+    } else {
+        println!("Info | config.toml not found or invalid; falling back to environment settings");
+        default_config()
+    };
+
+    // Override with environment variables if present
+    if let Ok(id) = std::env::var("GITHUB_CLIENT_ID") {
+        config.admin.github_client_id = id;
+    }
+    if let Ok(sec) = std::env::var("GITHUB_CLIENT_SECRET") {
+        config.admin.github_client_secret = sec;
+    }
+    if let Ok(user) = std::env::var("GITHUB_ALLOWED_USERNAME") {
+        config.admin.github_allowed_username = user;
+    }
+    if let Ok(limit) = std::env::var("DATABASE_STORAGE_LIMIT_BYTES") {
+        if let Ok(l) = limit.parse() {
+            config.admin.database_storage_limit_bytes = l;
+        }
+    }
+
+    config
+}
+
+fn default_config() -> Config {
     let db_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/rps".to_string());
     Config {
@@ -80,5 +138,6 @@ pub fn load_config() -> Config {
             password_protection_enabled: true,
             encryption_enabled: true,
         },
+        admin: AdminConfig::default(),
     }
 }

@@ -65,3 +65,12 @@ password_protection_enabled = true
 # Uses the user password to encrypt content symmetrically using AES-256 before database insertion.
 encryption_enabled = true
 
+[admin]
+# GitHub OAuth Credentials
+# Registers application for admin dashboard login
+# github_client_id = "your_client_id"
+# github_client_secret = "your_client_secret"
+# github_allowed_username = "tristanbudd"
+# database_storage_limit_bytes = 10737418240 # 10 GB
+
+

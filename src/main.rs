@@ -5,6 +5,8 @@ mod handlers;
 mod middleware;
 mod security;
 mod utils;
+mod admin;
+
 
 use axum::{
     routing::{get, post},
@@ -28,6 +30,9 @@ pub struct AppState {
     pub config: Config,
     pub ip_limits: Arc<
         tokio::sync::Mutex<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>,
+    >,
+    pub admin_sessions: Arc<
+        tokio::sync::Mutex<std::collections::HashMap<String, crate::admin::AdminSession>>,
     >,
 }
 
@@ -57,6 +62,7 @@ async fn main() {
         pool: pool.clone(),
         config: config.clone(),
         ip_limits: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
+        admin_sessions: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
     };
 
     // Start database cleanup scheduler
@@ -74,6 +80,15 @@ async fn main() {
         .route("/api/paste", post(create_paste))
         .route("/api/paste/{id}", get(get_paste))
         .route("/raw/{id}", get(raw_paste))
+        .route("/admin", get(crate::admin::serve_admin_page))
+        .route("/api/admin/auth/github", get(crate::admin::github_login))
+        .route("/api/admin/auth/callback", get(crate::admin::github_callback))
+        .route("/api/admin/auth/logout", post(crate::admin::logout))
+        .route("/api/admin/status", get(crate::admin::check_status))
+        .route("/api/admin/metrics", get(crate::admin::get_metrics))
+        .route("/api/admin/pastes", get(crate::admin::list_pastes))
+        .route("/api/admin/pastes/{id}", axum::routing::delete(crate::admin::delete_paste))
+        .route("/api/admin/cleanup", post(crate::admin::manual_cleanup))
         .fallback_service(serve_dir)
         .layer(CompressionLayer::new())
         .layer(axum::middleware::from_fn(cache_control_middleware))
