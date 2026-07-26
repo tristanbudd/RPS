@@ -268,7 +268,7 @@
 <body>
 
   <!-- Minimal Header (Matching app.js toolbar look exactly) -->
-  <header id="toolbar">
+  <header id="toolbar" class="hidden">
     <a href="/" id="logo" aria-label="RPS home">
       <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <rect x="2" y="2" width="7" height="7" rx="1.5" fill="currentColor"/>
@@ -445,6 +445,7 @@
         const data = await response.json();
         
         if (data.logged_in) {
+          document.getElementById('toolbar').classList.remove('hidden');
           document.getElementById('view-login').classList.add('hidden');
           document.getElementById('view-dashboard').classList.remove('hidden');
           document.getElementById('admin-profile').classList.remove('hidden');
@@ -460,6 +461,7 @@
     }
 
     function showLoginGate() {
+      document.getElementById('toolbar').classList.add('hidden');
       document.getElementById('view-login').classList.remove('hidden');
       document.getElementById('view-dashboard').classList.add('hidden');
       document.getElementById('admin-profile').classList.add('hidden');
