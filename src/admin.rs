@@ -1,6 +1,6 @@
 use crate::AppState;
 use axum::{
-    extract::{Path, Query, State},
+    extract::{FromRef, Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
@@ -8,7 +8,7 @@ use axum::{
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use sysinfo::{CpuExt, System, SystemExt};
+use sysinfo::System;
 
 #[derive(Clone, Debug)]
 pub struct AdminSession {
@@ -20,7 +20,6 @@ pub struct AdminUser {
     pub username: String,
 }
 
-#[axum::async_trait]
 impl<S> axum::extract::FromRequestParts<S> for AdminUser
 where
     S: Send + Sync,
@@ -315,7 +314,10 @@ pub async fn logout(State(state): State<AppState>, headers: HeaderMap) -> impl I
 }
 
 /// Checks current admin status
-pub async fn check_status(admin_user: Option<AdminUser>) -> impl IntoResponse {
+pub async fn check_status(
+    admin_user: Option<AdminUser>,
+    State(_state): State<AppState>,
+) -> impl IntoResponse {
     match admin_user {
         Some(user) => (
             StatusCode::OK,
