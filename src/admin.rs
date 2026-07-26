@@ -204,6 +204,7 @@ pub async fn github_callback(
     let token_response = match client
         .post("https://github.com/login/oauth/access_token")
         .header("Accept", "application/json")
+        .header("User-Agent", "RPS-Admin-Dashboard")
         .json(&serde_json::json!({
             "client_id": state.config.admin.github_client_id,
             "client_secret": state.config.admin.github_client_secret,
@@ -234,10 +235,17 @@ pub async fn github_callback(
                 .get("error_description")
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown error");
-            eprintln!("Error | GitHub OAuth error: {}", err_msg);
+            let err_code = token_body
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown_error");
+            eprintln!("Error | GitHub OAuth error ({}): {}", err_code, err_msg);
             return (
                 StatusCode::UNAUTHORIZED,
-                "Failed to retrieve access token from GitHub",
+                format!(
+                    "Failed to retrieve access token from GitHub. Error: {} ({})",
+                    err_msg, err_code
+                ),
             )
                 .into_response();
         }
