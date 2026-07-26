@@ -380,10 +380,19 @@
           </div>
         </div>
 
+        <!-- Floating/Dynamic Bulk Actions Bar -->
+        <div id="bulk-actions-bar" class="hidden" style="display: flex; gap: 12px; align-items: center; background: var(--bg-secondary); padding: 8px 16px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 12px; transition: all 0.2s ease;">
+          <span id="bulk-select-count" style="font-size: 0.82rem; font-weight: 500;">0 pastes selected</span>
+          <button id="btn-bulk-delete" class="btn-mono-danger" style="padding: 4px 12px; font-size: 0.8rem; margin-left: auto;">
+            Delete Selected
+          </button>
+        </div>
+
         <div class="table-wrapper">
           <table id="pastes-table">
             <thead>
               <tr>
+                <th style="width: 40px; text-align: left;"><input type="checkbox" id="chk-select-all" aria-label="Select all pastes" /></th>
                 <th>Paste ID</th>
                 <th>Created At</th>
                 <th>Expires At</th>
@@ -394,7 +403,7 @@
             </thead>
             <tbody id="pastes-table-body">
               <tr>
-                <td colspan="6" class="text-center" style="padding: 40px; color: var(--text-muted);">
+                <td colspan="7" class="text-center" style="padding: 40px; color: var(--text-muted);">
                   <span class="loading-pulse" style="width: 120px; height: 16px; display: inline-block;"></span>
                 </td>
               </tr>
@@ -542,10 +551,16 @@
       const tbody = document.getElementById('pastes-table-body');
       tbody.innerHTML = '';
 
+      const chkSelectAll = document.getElementById('chk-select-all');
+      if (chkSelectAll) chkSelectAll.checked = false;
+
+      const bar = document.getElementById('bulk-actions-bar');
+      if (bar) bar.classList.add('hidden');
+
       if (pastes.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="6" class="text-center" style="padding: 40px; color: var(--text-muted);">
+            <td colspan="7" class="text-center" style="padding: 40px; color: var(--text-muted);">
               No pastes currently registered in the database.
             </td>
           </tr>
@@ -555,6 +570,17 @@
 
       pastes.forEach(paste => {
         const tr = document.createElement('tr');
+
+        // Checkbox Cell for Multi-select
+        const tdCheck = document.createElement('td');
+        tdCheck.style.width = '40px';
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.className = 'chk-select-paste';
+        chk.dataset.id = paste.id;
+        chk.onchange = updateBulkActionsBar;
+        tdCheck.appendChild(chk);
+        tr.appendChild(tdCheck);
 
         // Paste ID Cell
         const tdId = document.createElement('td');
@@ -678,6 +704,64 @@
       }
     }
 
+    function updateBulkActionsBar() {
+      const checkboxes = document.querySelectorAll('.chk-select-paste');
+      const selected = Array.from(checkboxes).filter(chk => chk.checked);
+      const bar = document.getElementById('bulk-actions-bar');
+      const countLabel = document.getElementById('bulk-select-count');
+      const chkSelectAll = document.getElementById('chk-select-all');
+
+      if (selected.length > 0) {
+        bar.classList.remove('hidden');
+        countLabel.textContent = `${selected.length} paste${selected.length > 1 ? 's' : ''} selected`;
+        if (chkSelectAll) chkSelectAll.checked = selected.length === checkboxes.length;
+      } else {
+        if (bar) bar.classList.add('hidden');
+        if (chkSelectAll) chkSelectAll.checked = false;
+      }
+    }
+
+    async function deleteSelectedPastes() {
+      const checkboxes = document.querySelectorAll('.chk-select-paste');
+      const selectedIds = Array.from(checkboxes)
+        .filter(chk => chk.checked)
+        .map(chk => chk.dataset.id);
+
+      if (selectedIds.length === 0) return;
+
+      if (!confirm(`Are you sure you want to delete the ${selectedIds.length} selected paste(s)?`)) {
+        return;
+      }
+
+      showToast(`Deleting ${selectedIds.length} paste(s)...`, 0);
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const id of selectedIds) {
+        try {
+          const response = await fetch(`/api/admin/pastes/${id}`, {
+            method: 'DELETE'
+          });
+          if (response.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (err) {
+          failCount++;
+        }
+      }
+
+      dismissToast();
+      if (failCount > 0) {
+        showToast(`Bulk delete complete. Successfully deleted ${successCount} paste(s), failed to delete ${failCount} paste(s).`, true);
+      } else {
+        showToast(`Successfully deleted ${successCount} paste(s).`);
+      }
+
+      loadDashboardData();
+    }
+
     // Init
     document.addEventListener('DOMContentLoaded', () => {
       checkAuth();
@@ -685,6 +769,23 @@
       document.getElementById('btn-refresh').addEventListener('click', loadDashboardData);
       document.getElementById('btn-cleanup').addEventListener('click', triggerCleanup);
       document.getElementById('btn-logout').addEventListener('click', handleLogout);
+
+      const chkSelectAll = document.getElementById('chk-select-all');
+      if (chkSelectAll) {
+        chkSelectAll.addEventListener('change', (e) => {
+          const checked = e.target.checked;
+          const checkboxes = document.querySelectorAll('.chk-select-paste');
+          checkboxes.forEach(chk => {
+            chk.checked = checked;
+          });
+          updateBulkActionsBar();
+        });
+      }
+
+      const btnBulkDelete = document.getElementById('btn-bulk-delete');
+      if (btnBulkDelete) {
+        btnBulkDelete.addEventListener('click', deleteSelectedPastes);
+      }
 
       // Auto refresh metrics every 30 seconds
       setInterval(() => {
