@@ -1,3 +1,4 @@
+mod admin;
 mod cleanup;
 mod config;
 mod db;
@@ -5,8 +6,6 @@ mod handlers;
 mod middleware;
 mod security;
 mod utils;
-mod admin;
-
 
 use axum::{
     routing::{get, post},
@@ -31,9 +30,8 @@ pub struct AppState {
     pub ip_limits: Arc<
         tokio::sync::Mutex<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>,
     >,
-    pub admin_sessions: Arc<
-        tokio::sync::Mutex<std::collections::HashMap<String, crate::admin::AdminSession>>,
-    >,
+    pub admin_sessions:
+        Arc<tokio::sync::Mutex<std::collections::HashMap<String, crate::admin::AdminSession>>>,
 }
 
 #[tokio::main]
@@ -82,12 +80,18 @@ async fn main() {
         .route("/raw/{id}", get(raw_paste))
         .route("/admin", get(crate::admin::serve_admin_page))
         .route("/api/admin/auth/github", get(crate::admin::github_login))
-        .route("/api/admin/auth/callback", get(crate::admin::github_callback))
+        .route(
+            "/api/admin/auth/callback",
+            get(crate::admin::github_callback),
+        )
         .route("/api/admin/auth/logout", post(crate::admin::logout))
         .route("/api/admin/status", get(crate::admin::check_status))
         .route("/api/admin/metrics", get(crate::admin::get_metrics))
         .route("/api/admin/pastes", get(crate::admin::list_pastes))
-        .route("/api/admin/pastes/{id}", axum::routing::delete(crate::admin::delete_paste))
+        .route(
+            "/api/admin/pastes/{id}",
+            axum::routing::delete(crate::admin::delete_paste),
+        )
         .route("/api/admin/cleanup", post(crate::admin::manual_cleanup))
         .fallback_service(serve_dir)
         .layer(CompressionLayer::new())

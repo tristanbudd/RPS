@@ -1,14 +1,14 @@
+use crate::AppState;
 use axum::{
-    extract::{Path, State, Query},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
-use std::sync::Arc;
-use serde::{Deserialize, Serialize};
-use crate::AppState;
 use chrono::Utc;
-use sysinfo::{System, SystemExt, CpuExt};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use sysinfo::{CpuExt, System, SystemExt};
 
 #[derive(Clone, Debug)]
 pub struct AdminSession {
@@ -33,12 +33,12 @@ where
         state: &S,
     ) -> Result<Self, Self::Rejection> {
         let app_state = crate::AppState::from_ref(state);
-        
+
         let cookie_header = parts
             .headers
             .get(axum::http::header::COOKIE)
             .and_then(|value| value.to_str().ok());
-            
+
         let mut session_token = None;
         if let Some(cookie_str) = cookie_header {
             for cookie in cookie_str.split(';') {
@@ -49,12 +49,12 @@ where
                 }
             }
         }
-        
+
         let token = match session_token {
             Some(t) => t,
             None => return Err((StatusCode::UNAUTHORIZED, "Unauthorized: No session")),
         };
-        
+
         let sessions = app_state.admin_sessions.lock().await;
         if let Some(session) = sessions.get(&token) {
             if session.expires_at > chrono::Utc::now() {
@@ -63,8 +63,11 @@ where
                 });
             }
         }
-        
-        Err((StatusCode::UNAUTHORIZED, "Unauthorized: Invalid or expired session"))
+
+        Err((
+            StatusCode::UNAUTHORIZED,
+            "Unauthorized: Invalid or expired session",
+        ))
     }
 }
 
@@ -85,10 +88,10 @@ pub async fn serve_admin_page() -> impl IntoResponse {
 }
 
 /// Redirects to GitHub OAuth authorize page
-pub async fn github_login(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
-    if state.config.admin.github_client_id.is_empty() || state.config.admin.github_client_secret.is_empty() {
+pub async fn github_login(State(state): State<AppState>) -> impl IntoResponse {
+    if state.config.admin.github_client_id.is_empty()
+        || state.config.admin.github_client_secret.is_empty()
+    {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             "GitHub OAuth is not configured on this server. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET."
@@ -98,11 +101,13 @@ pub async fn github_login(
     let oauth_state = uuid::Uuid::new_v4().to_string();
     let auth_url = format!(
         "https://github.com/login/oauth/authorize?client_id={}&state={}&scope=read:user",
-        state.config.admin.github_client_id,
-        oauth_state
+        state.config.admin.github_client_id, oauth_state
     );
 
-    let cookie = format!("oauth_state={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=300", oauth_state);
+    let cookie = format!(
+        "oauth_state={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=300",
+        oauth_state
+    );
 
     (
         StatusCode::SEE_OTHER,
@@ -110,7 +115,8 @@ pub async fn github_login(
             (axum::http::header::SET_COOKIE, cookie),
             (axum::http::header::LOCATION, auth_url),
         ],
-    ).into_response()
+    )
+        .into_response()
 }
 
 #[derive(Deserialize)]
@@ -143,8 +149,9 @@ pub async fn github_callback(
     if oauth_state.is_none() || oauth_state.unwrap() != params.state {
         return (
             StatusCode::BAD_REQUEST,
-            "CSRF state mismatch or expired auth session"
-        ).into_response();
+            "CSRF state mismatch or expired auth session",
+        )
+            .into_response();
     }
 
     // Exchange code for access token
@@ -163,17 +170,31 @@ pub async fn github_callback(
         Ok(resp) => resp,
         Err(e) => {
             eprintln!("Error | OAuth token exchange request failed: {:?}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to contact GitHub for token").into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to contact GitHub for token",
+            )
+                .into_response();
         }
     };
 
-    let token_body: serde_json::Value = token_response.json().await.unwrap_or(serde_json::Value::Null);
+    let token_body: serde_json::Value = token_response
+        .json()
+        .await
+        .unwrap_or(serde_json::Value::Null);
     let access_token = match token_body.get("access_token").and_then(|v| v.as_str()) {
         Some(tok) => tok.to_string(),
         None => {
-            let err_msg = token_body.get("error_description").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+            let err_msg = token_body
+                .get("error_description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown error");
             eprintln!("Error | GitHub OAuth error: {}", err_msg);
-            return (StatusCode::UNAUTHORIZED, "Failed to retrieve access token from GitHub").into_response();
+            return (
+                StatusCode::UNAUTHORIZED,
+                "Failed to retrieve access token from GitHub",
+            )
+                .into_response();
         }
     };
 
@@ -188,24 +209,44 @@ pub async fn github_callback(
         Ok(resp) => resp,
         Err(e) => {
             eprintln!("Error | GitHub user profile request failed: {:?}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to contact GitHub for user info").into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to contact GitHub for user info",
+            )
+                .into_response();
         }
     };
 
-    let user_body: serde_json::Value = user_response.json().await.unwrap_or(serde_json::Value::Null);
+    let user_body: serde_json::Value = user_response
+        .json()
+        .await
+        .unwrap_or(serde_json::Value::Null);
     let username = match user_body.get("login").and_then(|v| v.as_str()) {
         Some(login) => login.to_string(),
-        None => return (StatusCode::UNAUTHORIZED, "Failed to retrieve GitHub login username").into_response(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                "Failed to retrieve GitHub login username",
+            )
+                .into_response()
+        }
     };
 
     // Verify authorized username
     let allowed_username = &state.config.admin.github_allowed_username;
     if allowed_username.is_empty() || username.to_lowercase() != allowed_username.to_lowercase() {
-        eprintln!("Warning | Unauthorized admin login attempt by GitHub user: {}", username);
+        eprintln!(
+            "Warning | Unauthorized admin login attempt by GitHub user: {}",
+            username
+        );
         return (
             StatusCode::FORBIDDEN,
-            format!("Access Denied: GitHub user '{}' is not authorized as admin.", username)
-        ).into_response();
+            format!(
+                "Access Denied: GitHub user '{}' is not authorized as admin.",
+                username
+            ),
+        )
+            .into_response();
     }
 
     // Create session
@@ -232,17 +273,18 @@ pub async fn github_callback(
         StatusCode::SEE_OTHER,
         [
             (axum::http::header::SET_COOKIE, session_cookie),
-            (axum::http::header::SET_COOKIE, clear_oauth_cookie.to_string()),
+            (
+                axum::http::header::SET_COOKIE,
+                clear_oauth_cookie.to_string(),
+            ),
             (axum::http::header::LOCATION, "/admin".to_string()),
         ],
-    ).into_response()
+    )
+        .into_response()
 }
 
 /// Logout admin user
-pub async fn logout(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> impl IntoResponse {
+pub async fn logout(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
     let cookie_header = headers
         .get(axum::http::header::COOKIE)
         .and_then(|value| value.to_str().ok());
@@ -273,9 +315,7 @@ pub async fn logout(
 }
 
 /// Checks current admin status
-pub async fn check_status(
-    admin_user: Option<AdminUser>,
-) -> impl IntoResponse {
+pub async fn check_status(admin_user: Option<AdminUser>) -> impl IntoResponse {
     match admin_user {
         Some(user) => (
             StatusCode::OK,
@@ -306,10 +346,7 @@ pub struct MetricsResponse {
 }
 
 /// Retrieve metrics: GET /api/admin/metrics
-pub async fn get_metrics(
-    _admin: AdminUser,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn get_metrics(_admin: AdminUser, State(state): State<AppState>) -> impl IntoResponse {
     // 1. Sysinfo metrics
     let mut sys = System::new();
     sys.refresh_memory();
@@ -370,10 +407,7 @@ pub struct AdminPasteItem {
 }
 
 /// Retrieves list of recent pastes: GET /api/admin/pastes
-pub async fn list_pastes(
-    _admin: AdminUser,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn list_pastes(_admin: AdminUser, State(state): State<AppState>) -> impl IntoResponse {
     let rows = sqlx::query(
         "SELECT id, created_at, expires_at, LENGTH(content) as length, (password_hash IS NOT NULL) as is_protected FROM pastes ORDER BY created_at DESC LIMIT 100"
     )
@@ -391,7 +425,7 @@ pub async fn list_pastes(
             let expires_at: chrono::DateTime<chrono::Utc> = row.get("expires_at");
             let length: i32 = row.get::<Option<i32>, _>("length").unwrap_or(0);
             let is_protected: bool = row.get("is_protected");
-            
+
             items.push(AdminPasteItem {
                 id,
                 created_at,
@@ -426,7 +460,11 @@ pub async fn delete_paste(
                 println!("Success | Admin deleted paste '{}' manually.", clean_id);
                 (StatusCode::OK, Json(serde_json::json!({ "success": true, "message": "Paste deleted successfully" }))).into_response()
             } else {
-                (StatusCode::NOT_FOUND, Json(serde_json::json!({ "success": false, "message": "Paste not found" }))).into_response()
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(serde_json::json!({ "success": false, "message": "Paste not found" })),
+                )
+                    .into_response()
             }
         }
         Err(e) => {
@@ -437,10 +475,7 @@ pub async fn delete_paste(
 }
 
 /// Manually trigger expired paste cleanups: POST /api/admin/cleanup
-pub async fn manual_cleanup(
-    _admin: AdminUser,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn manual_cleanup(_admin: AdminUser, State(state): State<AppState>) -> impl IntoResponse {
     println!("Info | Admin manually triggered expired paste cleanup...");
     let now = Utc::now();
     match sqlx::query("DELETE FROM pastes WHERE expires_at < $1")
@@ -450,12 +485,23 @@ pub async fn manual_cleanup(
     {
         Ok(res) => {
             let count = res.rows_affected();
-            println!("Success | Admin manual cleanup: Deleted {} expired pastes.", count);
-            (StatusCode::OK, Json(serde_json::json!({ "success": true, "deleted_count": count }))).into_response()
+            println!(
+                "Success | Admin manual cleanup: Deleted {} expired pastes.",
+                count
+            );
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "success": true, "deleted_count": count })),
+            )
+                .into_response()
         }
         Err(e) => {
             eprintln!("Error | Admin manual cleanup failed: {:?}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "success": false, "message": "Cleanup failed" }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "success": false, "message": "Cleanup failed" })),
+            )
+                .into_response()
         }
     }
 }
