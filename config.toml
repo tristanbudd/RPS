@@ -13,6 +13,10 @@ port = 8000
 # WARNING: Do not use default credentials in production. Use environment variables (DATABASE_URL) to override this value.
 url = "postgres://postgres:postgres@db:5432/rps"
 
+# The maximum size in bytes that the database is allowed to grow to before rejecting new pastes.
+# WARNING: Exceeding this limit will block new paste creation.
+storage_limit_bytes = 10737418240 # 10 GB
+
 [paste]
 # The default expiration period in days for a new paste.
 # Pastes will be automatically deleted after this many days unless read/reopened.
@@ -66,11 +70,8 @@ password_protection_enabled = true
 encryption_enabled = true
 
 [admin]
-# GitHub OAuth Credentials
-# Registers application for admin dashboard login
-# github_client_id = "your_client_id"
-# github_client_secret = "your_client_secret"
-# github_allowed_username = "tristanbudd"
-# database_storage_limit_bytes = 10737418240 # 10 GB
+# The GitHub username allowed to access the admin dashboard.
+# Client ID and Client Secret must be configured as environment variables (GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET).
+github_allowed_username = "tristanbudd"
 
 

@@ -26,4 +26,4 @@ tower = { version = "0.5", features = ["limit"] }
 bcrypt = "0.15"
 magic-crypt = "4.0.0"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
-sysinfo = { version = "0.30", default-features = false, features = ["system"] }
+sysinfo = "0.30"

@@ -27,6 +27,8 @@ pub struct ServerConfig {
 #[derive(Deserialize, Clone, Debug)]
 pub struct DatabaseConfig {
     pub url: String,
+    #[serde(default = "default_database_storage_limit_bytes")]
+    pub storage_limit_bytes: u64,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -55,8 +57,6 @@ pub struct AdminConfig {
     pub github_client_secret: String,
     #[serde(default)]
     pub github_allowed_username: String,
-    #[serde(default = "default_database_storage_limit_bytes")]
-    pub database_storage_limit_bytes: u64,
 }
 
 fn default_database_storage_limit_bytes() -> u64 {
@@ -69,10 +69,6 @@ impl Default for AdminConfig {
             github_client_id: std::env::var("GITHUB_CLIENT_ID").unwrap_or_default(),
             github_client_secret: std::env::var("GITHUB_CLIENT_SECRET").unwrap_or_default(),
             github_allowed_username: std::env::var("GITHUB_ALLOWED_USERNAME").unwrap_or_default(),
-            database_storage_limit_bytes: std::env::var("DATABASE_STORAGE_LIMIT_BYTES")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or_else(default_database_storage_limit_bytes),
         }
     }
 }
@@ -104,7 +100,7 @@ pub fn load_config() -> Config {
     }
     if let Ok(limit) = std::env::var("DATABASE_STORAGE_LIMIT_BYTES") {
         if let Ok(l) = limit.parse() {
-            config.admin.database_storage_limit_bytes = l;
+            config.database.storage_limit_bytes = l;
         }
     }
 
@@ -119,7 +115,10 @@ fn default_config() -> Config {
             host: "0.0.0.0".to_string(),
             port: 8000,
         },
-        database: DatabaseConfig { url: db_url },
+        database: DatabaseConfig {
+            url: db_url,
+            storage_limit_bytes: default_database_storage_limit_bytes(),
+        },
         paste: PasteConfig {
             default_expiry_days: 30,
             extend_expiry_on_read: true,

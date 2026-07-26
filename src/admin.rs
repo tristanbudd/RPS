@@ -354,7 +354,7 @@ pub async fn get_metrics(
         memory_total_bytes,
         database_size_bytes: db_size.0,
         pastes_table_size_bytes: table_size.0,
-        database_limit_bytes: state.config.admin.database_storage_limit_bytes,
+        database_limit_bytes: state.config.database.storage_limit_bytes,
         total_pastes: total_pastes.0,
         active_pastes: active_pastes.0,
     })
