@@ -238,6 +238,7 @@ function setEditMode() {
 
   // Ensure password gate modal is hidden
   passwordGate.classList.add('hidden');
+  document.getElementById('content').classList.remove('hidden');
 
   // Manage password UI inputs
   btnPasswordToggle.classList.remove('hidden');
@@ -271,6 +272,7 @@ async function setViewMode(content, lang, justSaved = false) {
   const lines = content.split('\n').length;
   updateGutter(lines, 1);
 
+  document.getElementById('content').classList.remove('hidden');
   editor.classList.add('hidden');
   viewer.classList.remove('hidden');
   btnSave.classList.add('hidden');
@@ -333,6 +335,7 @@ function setLoadingMode(id) {
 
   updateGutter(1, 1);
 
+  document.getElementById('content').classList.remove('hidden');
   editor.classList.add('hidden');
   viewer.classList.remove('hidden');
   btnSave.classList.add('hidden');
@@ -430,6 +433,9 @@ async function loadPaste(id, lang, password = null) {
       dismissToast();
       state.pasteId = id;
       state.lang = lang;
+
+      // Hide content background until correct password entered
+      document.getElementById('content').classList.add('hidden');
 
       // Unhide password gate overlay
       passwordGate.classList.remove('hidden');
