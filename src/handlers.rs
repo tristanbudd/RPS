@@ -69,6 +69,20 @@ pub async fn create_paste(
             .into_response();
     }
 
+    // Verify database storage limit is not exceeded
+    let db_size: (i64,) = sqlx::query_as("SELECT pg_database_size(current_database())")
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or((0,));
+
+    if db_size.0 as u64 >= state.config.database.storage_limit_bytes {
+        return (
+            StatusCode::INSUFFICIENT_STORAGE,
+            "Database storage limit has been exceeded. No new pastes can be created.",
+        )
+            .into_response();
+    }
+
     // Calculate password hash if enabled and provided
     let raw_password = payload.password.as_deref().filter(|p| !p.trim().is_empty());
 
