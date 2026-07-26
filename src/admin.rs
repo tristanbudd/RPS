@@ -322,18 +322,20 @@ pub async fn github_callback(
     );
     let clear_oauth_cookie = "oauth_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
 
-    (
-        StatusCode::SEE_OTHER,
-        [
-            (axum::http::header::SET_COOKIE, session_cookie),
-            (
-                axum::http::header::SET_COOKIE,
-                clear_oauth_cookie.to_string(),
-            ),
-            (axum::http::header::LOCATION, "/admin".to_string()),
-        ],
-    )
-        .into_response()
+    let mut response = StatusCode::SEE_OTHER.into_response();
+    let headers_map = response.headers_mut();
+
+    if let Ok(val) = axum::http::HeaderValue::from_str(&session_cookie) {
+        headers_map.append(axum::http::header::SET_COOKIE, val);
+    }
+    if let Ok(val) = axum::http::HeaderValue::from_str(clear_oauth_cookie) {
+        headers_map.append(axum::http::header::SET_COOKIE, val);
+    }
+    if let Ok(val) = axum::http::HeaderValue::from_str("/admin") {
+        headers_map.insert(axum::http::header::LOCATION, val);
+    }
+
+    response
 }
 
 /// Logout admin user
