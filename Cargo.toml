@@ -24,6 +24,6 @@ rand = "0.8"
 uuid = { version = "1.8", features = ["v4", "serde"] }
 tower = { version = "0.5", features = ["limit"] }
 bcrypt = "0.15"
-magic-crypt = "4.0.0"
+magic-crypt = "5.0.1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 sysinfo = "0.30"
